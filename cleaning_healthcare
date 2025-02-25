@@ -208,3 +208,85 @@ df_dental_orthodontics = pd.DataFrame({
 # Drop the PPO Plan In-Network column from both dataframes
 cleaned_df5 = cleaned_df5.drop(columns=['PPO Plan In-Network'])
 cleaned_df6 = cleaned_df6.drop(columns=['PPO Plan In-Network'])
+
+----------------------------------------------------
+
+import pandas as pd
+
+# Vision care services main dataframe
+df_vision_plans = pd.DataFrame({
+    'Vision_Care_Services': ['Exam with dilation as necessary', 'Frames'],
+    'In_Network_Member_Cost': ['$0 copay', 
+                              '$0 copay, $100 allowance, plus 20% discount on balance\nBenefits specific to Davis Vision, $150 allowance at Visionworks,\nor Davis Vision "Exclusive Collection" covered in full'],
+    'Out_of_Network_Reimbursement': ['N/A', 'N/A']
+})
+
+# Lens options dataframe
+df_vision_lens_options = pd.DataFrame({
+    'Vision_Care_Services': ['Standard Progressive Lenses', 
+                           'Premium Progressive Lenses', 
+                           'Ultra-Progressive Lenses',
+                           'High-Index Lenses',
+                           'Plastic Photosensitive Lenses (Transitions)',
+                           'Scratch Protection Plan:\nSingle Vision/Multifocal Lenses',
+                           'UV Treatment',
+                           'Tint (Solid and Gradient)',
+                           'Standard Polycarbonate–Adults',
+                           'Standard Polycarbonate–Kids Under 19',
+                           'Standard Anti-Reflective Coating',
+                           'Premium Anti-Reflective Coating',
+                           'Ultra-Anti-Reflective Coating',
+                           'Polarized',
+                           'Other Add-Ons and Services'],
+    'In_Network_Member_Cost': ['$0', 
+                              '$40', 
+                              '$90',
+                              '$60',
+                              '$70',
+                              '$20/$40',
+                              '$12',
+                              '$0',
+                              '$35',
+                              '$0',
+                              '$40',
+                              '$55',
+                              '$69',
+                              '$75',
+                              '$20 discount (where applicable) balance from insured frame\npurchase; 30% discount on additional pairs of eyeglasses'],
+    'Out_of_Network_Reimbursement': ['N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A']
+})
+
+# Standard plastic lenses dataframe
+df_vision_standard_plastic_lenses = pd.DataFrame({
+    'Vision_Care_Services': ['Single Vision', 'Bifocal', 'Trifocal', 'Lenticular'],
+    'In_Network_Member_Cost': ['$0 copay', '$0 copay', '$0 copay', '$0 copay'],
+    'Out_of_Network_Reimbursement': ['N/A', 'N/A', 'N/A', 'N/A']
+})
+
+# Contact lens fit & follow-up dataframe
+df_vision_contact_lens_fit_follow_up = pd.DataFrame({
+    'Vision_Care_Services': ['Standard Contact Lens Fit & Follow-up', 'Specialty Contact Lens Fit & Follow-up'],
+    'In_Network_Member_Cost': ['$0 copay, covered in full', '$0 copay, up to $50 allowance plus 15% discount on any overage'],
+    'Out_of_Network_Reimbursement': ['N/A', 'N/A']
+})
+
+# Contact lens fit dataframe
+df_vision_contact_lens_fit = pd.DataFrame({
+    'Vision_Care_Services': ['Conventional and Disposable', 'Medically Necessary'],
+    'In_Network_Member_Cost': ['$0 copay, $100 allowance, 15% of balance over $100', '$0 copay, covered in full (prior approval required)'],
+    'Out_of_Network_Reimbursement': ['N/A', 'N/A']
+})
+
+# Laser vision correction dataframe
+df_vision_laser_vision_correction = pd.DataFrame({
+    'Vision_Care_Services': ['Laser Vision Coverage'],
+    'In_Network_Member_Cost': ['40-50% off the national average price of traditional LASIK'],
+    'Out_of_Network_Reimbursement': ['N/A']
+})
+
+# Frequency dataframe
+df_vision_frequency = pd.DataFrame({
+    'Vision_Care_Services': ['Examination', 'Lenses or Contact Lenses', 'Frames'],
+    'In_Network_Member_Cost': ['Once every 12 months', 'Once every 12 months', 'Once every 24 months'],
+    'Out_of_Network_Reimbursement': ['Once every 12 months', 'Once every 12 months', 'Once every 24 months']
+})
