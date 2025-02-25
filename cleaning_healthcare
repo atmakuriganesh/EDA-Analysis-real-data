@@ -114,6 +114,97 @@ cleaned_df5 = df.iloc[:extended_care_index].copy().reset_index(drop=True)
 # Create second dataframe - only rows after Extended Care (exclude Extended Care itself)
 cleaned_df6 = df.iloc[extended_care_index+1:].copy().reset_index(drop=True)
 
+
+--------------------------------------------
+
+import pandas as pd
+
+# Main dental information dataframe
+df_dental = pd.DataFrame({
+    'Item/Procedure': ['Benefit Period Maximum', 'Deductible'],
+    'Dental_HMO_Copayment_Member_Pays': ['None', 'None'],
+    'Dental_PPO_In_Network': ['$1,500', 
+                              '$25 per Individual\n$100 per Family\n(4 individual maximums)\nDeductible does not apply to preventive and orthodontic services'],
+    'Dental_PPO_Out_of_Network': ['$1,500', 
+                                 '$50 per Individual\n$200 per Family\n(4 individual maximums)\nDeductible does not apply to preventive and orthodontic services']
+})
+
+# Preventative services dataframe
+df_dental_preventative = pd.DataFrame({
+    'Item/Procedure': ['Dental Exams\n(2 exams per benefit period)', 
+                      'Prophaxis\n(2 exams per benefit period)', 
+                      'Fluoride Treatment\n(2 exams per benefit period)'],
+    'Dental_HMO_Copayment_Member_Pays': ['$0', '$0', 'Once every 24 months'],
+    'Dental_PPO_In_Network': ['100% of the maximum allowance', '100% of the maximum allowance', '100% of the maximum allowance'],
+    'Dental_PPO_Out_of_Network': ['80% of the maximum allowance', '80% of the maximum allowance', '80% of the maximum allowance']
+})
+
+# Primary services dataframe
+df_dental_primary_services = pd.DataFrame({
+    'Item/Procedure': ['Dental X-Rays', 'Space Maintainers\n(eligible members up to age 19)'],
+    'Dental_HMO_Copayment_Member_Pays': ['$0', '$63-$96'],
+    'Dental_PPO_In_Network': ['80% of the maximum allowance', '80% of the maximum allowance'],
+    'Dental_PPO_Out_of_Network': ['60% of the maximum allowance', '60% of the maximum allowance']
+})
+
+# Restorative services dataframe
+df_dental_restorative = pd.DataFrame({
+    'Item/Procedure': ['Amalgams and Anterior Resins', 'Posterior Resins', 'Crowns and Fixed Bridges'],
+    'Dental_HMO_Copayment_Member_Pays': ['$17-$44', '$53-$105', '$256-$300 per unit'],
+    'Dental_PPO_In_Network': ['80% of the maximum allowance', '80% of the maximum allowance', '50% of the maximum allowance'],
+    'Dental_PPO_Out_of_Network': ['60% of the maximum allowance', '60% of the maximum allowance', '50% of the maximum allowance']
+})
+
+# Emergency services dataframe
+df_dental_emergency_services = pd.DataFrame({
+    'Item/Procedure': ['Palliative Emergency Treatment'],
+    'Dental_HMO_Copayment_Member_Pays': ['$0'],
+    'Dental_PPO_In_Network': ['80% of the maximum allowance'],
+    'Dental_PPO_Out_of_Network': ['80% of the maximum allowance']
+})
+
+# Endodontics dataframe
+df_dental_endodontics = pd.DataFrame({
+    'Item/Procedure': ['Root Canal Therapy'],
+    'Dental_HMO_Copayment_Member_Pays': ['$109-$162'],
+    'Dental_PPO_In_Network': ['80% of the maximum allowance'],
+    'Dental_PPO_Out_of_Network': ['60% of the maximum allowance']
+})
+
+# Periodontics dataframe
+df_dental_periodontics = pd.DataFrame({
+    'Item/Procedure': ['Scaling and Root Planing', 'Gingivectomy', 'Osseous Surgery'],
+    'Dental_HMO_Copayment_Member_Pays': ['$37/quadrant', '$111/quadrant', '$206/quadrant'],
+    'Dental_PPO_In_Network': ['80% of the maximum allowance', '80% of the maximum allowance', '80% of the maximum allowance'],
+    'Dental_PPO_Out_of_Network': ['60% of the maximum allowance', '60% of the maximum allowance', '60% of the maximum allowance']
+})
+
+# Oral surgery dataframe
+df_dental_oral_surgery = pd.DataFrame({
+    'Item/Procedure': ['Routine Extractions', 'Removal of Impacted Teeth\n(soft tissue and partial bony)'],
+    'Dental_HMO_Copayment_Member_Pays': ['$18-$20', '$50-$65'],
+    'Dental_PPO_In_Network': ['80% of the maximum allowance', '80% of the maximum allowance'],
+    'Dental_PPO_Out_of_Network': ['60% of the maximum allowance', '60% of the maximum allowance']
+})
+
+# Prosthetics dataframe
+df_dental_prosthetics = pd.DataFrame({
+    'Item/Procedure': ['Full or Partial Dentures', 'Denture Reline', 'Endosseous Implants'],
+    'Dental_HMO_Copayment_Member_Pays': ['$383-$396', '$40-$72', 'Not covered'],
+    'Dental_PPO_In_Network': ['50% of the maximum allowance', '50% of the maximum allowance', '50% of the maximum allowance'],
+    'Dental_PPO_Out_of_Network': ['50% of the maximum allowance', '50% of the maximum allowance', '50% of the maximum allowance']
+})
+
+# Orthodontics dataframe
+df_dental_orthodontics = pd.DataFrame({
+    'Item/Procedure': ['Adults (19 or older)', 'Dependent Children (up to age 19)', 'Lifetime Maximum'],
+    'Dental_HMO_Copayment_Member_Pays': ['Not covered', 
+                                       '$3,233-$3,356 not including\nX-rays or orthodontic records', 
+                                       'One full course of treatment for\ndependent children under age 19'],
+    'Dental_PPO_In_Network': ['50% of the maximum allowance', '50% of the maximum allowance', '$1,250'],
+    'Dental_PPO_Out_of_Network': ['50% of the maximum allowance', '50% of the maximum allowance', '$1,250']
+})
+
 # Drop the PPO Plan In-Network column from both dataframes
 cleaned_df5 = cleaned_df5.drop(columns=['PPO Plan In-Network'])
 cleaned_df6 = cleaned_df6.drop(columns=['PPO Plan In-Network'])
