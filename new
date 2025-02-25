@@ -1,0 +1,151 @@
+import pdfplumber
+import pandas as pd
+import re
+
+def extract_tables_from_pdf(pdf_path, pages_to_extract):
+    """
+    Extract tables from specific pages of a PDF and save each as a DataFrame
+    
+    Args:
+        pdf_path (str): Path to the PDF file
+        pages_to_extract (list): List of page numbers to extract tables from
+    
+    Returns:
+        dict: Dictionary with keys as 'page_{page_num}_table_{table_num}' and values as pandas DataFrames
+    """
+    dataframes = {}
+    
+    # Open the PDF file
+    with pdfplumber.open(pdf_path) as pdf:
+        for page_num in pages_to_extract:
+            # PDF pages are 0-indexed in pdfplumber
+            if page_num <= len(pdf.pages):
+                page = pdf.pages[page_num - 1]  
+                tables = page.extract_tables()
+                
+                if tables:
+                    for i, table in enumerate(tables):
+                        # Create DataFrame keys with descriptive names
+                        key = f"page_{page_num}_table_{i+1}"
+                        
+                        # Convert table rows to DataFrame
+                        # First row as header, remaining rows as data
+                        if table:
+                            headers = table[0]
+                            data = table[1:]
+                            
+                            # Clean up headers (remove None values and empty strings)
+                            headers = [h if h is not None else f"Col_{j}" for j, h in enumerate(headers)]
+                            headers = [h if h != "" else f"Col_{j}" for j, h in enumerate(headers)]
+                            
+                            # Create DataFrame
+                            df = pd.DataFrame(data, columns=headers)
+                            
+                            # Clean up DataFrame (replace None with NaN)
+                            df = df.replace({None: pd.NA})
+                            
+                            # Store in dictionary
+                            dataframes[key] = df
+                            print(f"Extracted table from page {page_num}, table {i+1}")
+                else:
+                    print(f"No tables found on page {page_num}")
+            else:
+                print(f"Page {page_num} does not exist in the document")
+    
+    return dataframes
+
+def assign_descriptive_names(dataframes):
+    """
+    Assign more descriptive names to DataFrames based on their content
+    
+    Args:
+        dataframes (dict): Dictionary of DataFrames with keys like 'page_6_table_1'
+    
+    Returns:
+        dict: Dictionary with more descriptive keys
+    """
+    named_dataframes = {}
+    
+    # Define mapping for known tables
+    naming_map = {
+        13: "health_benefits_summary",
+        16: "dental_plan_summary",
+        18: "vision_plan_summary"
+    }
+    
+    for key, df in dataframes.items():
+        # Extract page number from key
+        match = re.search(r'page_(\d+)_table_(\d+)', key)
+        if match:
+            page_num = int(match.group(1))
+            table_num = int(match.group(2))
+            
+            if page_num in naming_map:
+                new_key = f"{naming_map[page_num]}_{table_num}"
+                named_dataframes[new_key] = df
+            else:
+                named_dataframes[key] = df
+        else:
+            named_dataframes[key] = df
+    
+    return named_dataframes
+
+def process_tables_for_specific_pages(pdf_path, pages_of_interest):
+    """
+    Main function to extract and process tables from the PDF
+    
+    Args:
+        pdf_path (str): Path to the PDF file
+        pages_of_interest (list): List of page numbers to extract tables from
+        
+    Returns:
+        dict: Dictionary of DataFrames with descriptive names
+    """
+    # Extract tables from specified pages
+    print("Extracting tables from specified pages...")
+    dataframes = extract_tables_from_pdf(pdf_path, pages_of_interest)
+    
+    # Assign more descriptive names
+    named_dataframes = assign_descriptive_names(dataframes)
+    
+    # Print summary
+    print(f"\nTotal tables extracted: {len(named_dataframes)}")
+    for name, df in named_dataframes.items():
+        print(f"{name}: {df.shape[0]} rows x {df.shape[1]} columns")
+    
+    return named_dataframes
+
+if __name__ == "__main__":
+    # Define the path to the PDF file
+    pdf_path = "county.pdf"
+    
+    # Specifically extract tables from pages 13, 16, and 18
+    pages_of_interest = [13, 16, 18]
+    
+    # Process the tables from specific pages
+    all_tables = process_tables_for_specific_pages(pdf_path, pages_of_interest)
+    
+    # Example of how to access each DataFrame
+    for name, df in all_tables.items():
+        print(f"\n--- {name} ---")
+        print(df.head())
+        
+    # Example of working with specific tables
+    
+    # Health Benefits Summary (Page 13)
+    if "health_benefits_summary_1" in all_tables:
+        health_benefits = all_tables["health_benefits_summary_1"]
+        print("\nHealth Benefits Summary:")
+        print(health_benefits)
+        
+    # Dental Plan Summary (Page 16)
+    if "dental_plan_summary_1" in all_tables:
+        dental_plan = all_tables["dental_plan_summary_1"]
+        print("\nDental Plan Summary:")
+        print(dental_plan)
+        
+    # Vision Plan Summary (Page 18)
+    if "vision_plan_summary_1" in all_tables:
+        vision_plan = all_tables["vision_plan_summary_1"]
+        print("\nVision Plan Summary:")
+        print(vision_plan)
