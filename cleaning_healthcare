@@ -1,0 +1,119 @@
+import pandas as pd
+
+def clean_health_plan_df(df):
+    # Drop the index column if it exists
+    if df.index.name:
+        df = df.reset_index(drop=True)
+    
+    # Get the column names
+    columns = df.columns.tolist()
+    
+    # Create a new dataframe with the desired structure
+    new_df = pd.DataFrame()
+    
+    # Keep the Feature column
+    new_df['Feature'] = df[columns[0]].astype(str).str.replace(r'^\d+\s+', '', regex=True)
+    
+    # Keep the HMO Plan column
+    new_df['HMO Plan'] = df[columns[1]].astype(str)
+    
+    # Rename the third column to include both Cook County and PPO In-Network
+    new_df['Cook County Domestic Tier PPO Plan In-Network'] = df[columns[2]].astype(str).str.replace('\\n', ' ').str.replace('\\', '')
+    
+    # Rename the fourth column to PPO Plan Out-of-Network
+    new_df['PPO Plan Out-of-Network'] = df[columns[4]].astype(str).str.replace('\\n', ' ').str.replace('\\', '')
+    
+    # Filter out any rows containing 'NOTE:' or similar
+    new_df = new_df[~new_df['Feature'].str.contains('NOTE', case=False, na=False)]
+    
+    # Clean all cell values
+    for col in new_df.columns:
+        # Replace any remaining newlines with spaces
+        new_df[col] = new_df[col].str.replace('\n', ' ')
+        # Replace escape characters
+        new_df[col] = new_df[col].str.replace('\\', '')
+        # Remove <NA> values
+        new_df[col] = new_df[col].str.replace('<NA>', '')
+        # Remove index numbers that might be in the cells
+        new_df[col] = new_df[col].str.replace(r'^\d+$', '', regex=True)
+        # Trim whitespace
+        new_df[col] = new_df[col].str.strip()
+    
+    # Replace NaN and "nan" with empty strings
+    new_df = new_df.replace({'nan': '', 'NaN': '', pd.NA: ''})
+    
+    # Reset index for clean output
+    new_df = new_df.reset_index(drop=True)
+    
+    return new_df
+
+cleaned_df = clean_health_plan_df(all_tables['health_benefits_summary_1'])
+cleaned_df2 = clean_health_plan_df(all_tables['health_benefits_summary_2'])
+cleaned_df3 = clean_health_plan_df(all_tables['health_benefits_summary_3'])
+
+------------------------------------
+
+
+
+
+
+# Direct modification to add 10% coinsurance to the first two rows in the third column
+cleaned_df3.loc[0, "Cook County Domestic Tier PPO Plan In-Network"] = "0% coinsurance 10% coinsurance"
+cleaned_df3.loc[1, "Cook County Domestic Tier PPO Plan In-Network"] = "0% coinsurance 10% coinsurance"
+
+# If you want to append to existing values instead of replacing:
+for idx in [0, 1]:
+    current_val = cleaned_df3.loc[idx, "Cook County Domestic Tier PPO Plan In-Network"]
+    if pd.isna(current_val) or current_val == "":
+        cleaned_df3.loc[idx, "Cook County Domestic Tier PPO Plan In-Network"] = "0% coinsurance 10% coinsurance"
+    elif "10% coinsurance" not in str(current_val):
+        cleaned_df3.loc[idx, "Cook County Domestic Tier PPO Plan In-Network"] += "0% coinsurance 10% coinsurance"
+
+-----------------------------------------
+
+# Rename columns to match the health plan table
+all_tables['health_benefits_summary_4'].columns = ['Feature', 'HMO Plan', 'Cook County Domestic Tier PPO Plan In-Network', 'PPO Plan Out-of-Network']
+
+# Copy data from Col_2 to Col_3 for rows 0 and 1
+all_tables['health_benefits_summary_4'].loc[0, 'PPO Plan Out-of-Network'] = all_tables['health_benefits_summary_4'].loc[0, 'Cook County Domestic Tier PPO Plan In-Network']
+all_tables['health_benefits_summary_4'].loc[1, 'PPO Plan Out-of-Network'] = all_tables['health_benefits_summary_4'].loc[1, 'Cook County Domestic Tier PPO Plan In-Network']
+
+# Remove \n from all cells
+for col in all_tables['health_benefits_summary_4'].columns:
+    all_tables['health_benefits_summary_4'][col] = all_tables['health_benefits_summary_4'][col].astype(str).str.replace('\n', ' ').str.replace('\\n', ' ')
+-----------------------------------------------
+
+cleaned_df4 = all_tables['health_benefits_summary_4'].copy()
+
+------------------------------------
+
+# Rename columns to match health plan format
+df = all_tables['health_benefits_summary_5'].copy()  # Make an explicit copy
+df.columns = ['Feature', 'HMO Plan', 'Cook County Domestic Tier PPO Plan In-Network', 'PPO Plan In-Network', 'PPO Plan Out-of-Network']
+
+# Remove \n from all cells
+for col in df.columns:
+    df[col] = df[col].astype(str).str.replace('\n', ' ').str.replace('\\n', ' ')
+
+# Remove the NOTE row
+df = df[~df['Feature'].str.contains('NOTE', case=False)]
+
+# Combine column 3 values with column 2 where needed
+for idx in df.index:
+    if df.loc[idx, 'PPO Plan In-Network'] != '<NA>':
+        df.loc[idx, 'Cook County Domestic Tier PPO Plan In-Network'] = (
+            f"{df.loc[idx, 'Cook County Domestic Tier PPO Plan In-Network']} {df.loc[idx, 'PPO Plan In-Network']}"
+        )
+
+# Find the index for Extended Care
+extended_care_index = df[df['Feature'] == 'Extended Care'].index[0]
+
+# Create first dataframe - only rows before Extended Care
+cleaned_df5 = df.iloc[:extended_care_index].copy().reset_index(drop=True)
+
+# Create second dataframe - only rows after Extended Care (exclude Extended Care itself)
+cleaned_df6 = df.iloc[extended_care_index+1:].copy().reset_index(drop=True)
+
+# Drop the PPO Plan In-Network column from both dataframes
+cleaned_df5 = cleaned_df5.drop(columns=['PPO Plan In-Network'])
+cleaned_df6 = cleaned_df6.drop(columns=['PPO Plan In-Network'])
