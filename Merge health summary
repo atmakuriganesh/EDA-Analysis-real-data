@@ -62,3 +62,31 @@ df_vision_complete = df_vision_complete[columns_order]
 
 
 ---------------------------------------------------------------------------------------
+import pandas as pd
+
+# Add Category column to each health dataframe
+health_df['Category'] = 'Health Benefits Summary'
+health_primary_care_df['Category'] = 'Primary Care'
+health_outpatient_services_df['Category'] = 'Outpatient Services'
+health_emergency_care_df['Category'] = 'Emergency Care'
+health_inpatient_benefits_df['Category'] = 'Inpatient Benefits'
+health_extended_care_df['Category'] = 'Extended Care'
+
+# Concatenate all health dataframes
+health_complete_df = pd.concat([
+    health_df,
+    health_primary_care_df,
+    health_outpatient_services_df,
+    health_emergency_care_df,
+    health_inpatient_benefits_df,
+    health_extended_care_df
+], ignore_index=True)
+
+# Reorder columns to have Category as the first column
+columns = health_complete_df.columns.tolist()
+columns.remove('Category')
+columns = ['Category'] + columns
+
+# Apply the new column order
+health_complete_df = health_complete_df[columns]
+
