@@ -1,0 +1,32 @@
+import pandas as pd
+
+# First, let's add a Category column to each dataframe
+df_dental['Category'] = 'General Information'
+df_dental_preventative['Category'] = 'Preventative'
+df_dental_primary_services['Category'] = 'Primary Services'
+df_dental_restorative['Category'] = 'Restorative'
+df_dental_emergency_services['Category'] = 'Emergency Services'
+df_dental_endodontics['Category'] = 'Endodontics'
+df_dental_periodontics['Category'] = 'Periodontics'
+df_dental_oral_surgery['Category'] = 'Oral Surgery'
+df_dental_prosthetics['Category'] = 'Prosthetics'
+df_dental_orthodontics['Category'] = 'Orthodontics'
+
+# Now let's concatenate all dataframes
+df_dental_complete = pd.concat([
+    df_dental,
+    df_dental_preventative,
+    df_dental_primary_services,
+    df_dental_restorative,
+    df_dental_emergency_services,
+    df_dental_endodontics,
+    df_dental_periodontics,
+    df_dental_oral_surgery,
+    df_dental_prosthetics,
+    df_dental_orthodontics
+], ignore_index=True)
+
+# Reorder columns to have Category as the first column
+columns_order = ['Category', 'Item/Procedure', 'Dental_HMO_Copayment_Member_Pays', 
+                'Dental_PPO_In_Network', 'Dental_PPO_Out_of_Network']
+df_dental_complete = df_dental_complete[columns_order]
