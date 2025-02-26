@@ -30,3 +30,35 @@ df_dental_complete = pd.concat([
 columns_order = ['Category', 'Item/Procedure', 'Dental_HMO_Copayment_Member_Pays', 
                 'Dental_PPO_In_Network', 'Dental_PPO_Out_of_Network']
 df_dental_complete = df_dental_complete[columns_order]
+
+
+---------------------------------------------------------------------------------------------
+
+import pandas as pd
+
+# First, let's add a Category column to each vision dataframe
+df_vision_plans['Category'] = 'Vision Care Services'
+df_vision_lens_options['Category'] = 'Lens Options'
+df_vision_standard_plastic_lenses['Category'] = 'Standard Plastic Lenses'
+df_vision_contact_lens_fit_follow_up['Category'] = 'Contact Lens Fit & Follow-up'
+df_vision_contact_lens_fit['Category'] = 'Contact Lens Fit'
+df_vision_laser_vision_correction['Category'] = 'Laser Vision Correction'
+df_vision_frequency['Category'] = 'Frequency'
+
+# Now let's concatenate all vision dataframes
+df_vision_complete = pd.concat([
+    df_vision_plans,
+    df_vision_lens_options,
+    df_vision_standard_plastic_lenses,
+    df_vision_contact_lens_fit_follow_up,
+    df_vision_contact_lens_fit,
+    df_vision_laser_vision_correction,
+    df_vision_frequency
+], ignore_index=True)
+
+# Reorder columns to have Category as the first column
+columns_order = ['Category', 'Vision_Care_Services', 'In_Network_Member_Cost', 'Out_of_Network_Reimbursement']
+df_vision_complete = df_vision_complete[columns_order]
+
+
+---------------------------------------------------------------------------------------
