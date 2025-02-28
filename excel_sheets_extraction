@@ -29,7 +29,7 @@ def process_excel_files(folder_path):
             # Read the Excel sheet
             df = pd.read_excel(file_path, sheet_name=sheet_name, header=None)
             
-            # Try to find the title, preferring row 5 (index 4)
+            # Try to find the title, preferring rows 5-6 (index 4-5)
             title = extract_title(df)
             if not title:
                 title = f"Table_from_{os.path.basename(file_path)}_{sheet_name}"
@@ -46,18 +46,18 @@ def process_excel_files(folder_path):
                 # Clean up column names
                 df.columns = [str(col).strip() for col in df.columns]
                 
-                # Find the Annual row
-                annual_row = find_annual_row(df)
+                # Find all Annual rows
+                annual_rows = find_all_annual_rows(df)
                 
-                if annual_row is not None:
-                    # Extract the required columns
-                    result_df = extract_columns(df, annual_row)
+                if annual_rows:
+                    # Extract the required columns for all Annual rows
+                    result_df = extract_columns_multiple_rows(df, annual_rows)
                     
                     # Store the dataframe with the title as key
                     all_dataframes[title] = result_df
-                    print(f"  Extracted data for: {title}")
+                    print(f"  Extracted data for: {title} ({len(annual_rows)} Annual rows found)")
                 else:
-                    print(f"  No Annual row found in sheet {sheet_name}")
+                    print(f"  No Annual rows found in sheet {sheet_name}")
             else:
                 print(f"  No header row found in sheet {sheet_name}")
     
@@ -78,8 +78,8 @@ def process_excel_files(folder_path):
     return all_dataframes
 
 def extract_title(df):
-    # Prioritize row 5 (index 4) first, then try row 4 (index 3)
-    for row_idx in [4, 3]:
+    # Try rows 4-6 (index 3-5) for title
+    for row_idx in [5, 4, 3]:
         if row_idx < df.shape[0]:
             row_values = [str(val).strip() for val in df.iloc[row_idx] if pd.notna(val) and str(val).strip()]
             if row_values:
@@ -89,24 +89,26 @@ def extract_title(df):
     return None
 
 def find_header_row(df):
-    # Look for a row containing "Grade" and "Entry Rate" or "1st Step"
+    # Look for a row containing "Grade" and ("Entry Rate" or "1st Step")
     for idx, row in df.iterrows():
         row_values = [str(val).lower() if pd.notna(val) else "" for val in row]
         row_text = " ".join(row_values)
         
-        if ("grade" in row_text) and (("entry rate" in row_text) or ("1st step" in row_text) or ("step" in row_text)):
+        if "grade" in row_text and any(pattern in row_text for pattern in ["entry rate", "1st step"]):
             return idx
     return None
 
-def find_annual_row(df):
-    # Look for a row containing "Annual"
+def find_all_annual_rows(df):
+    # Find all rows containing "Annual"
+    annual_rows = []
     for idx, row in df.iterrows():
         for value in row:
             if isinstance(value, str) and "annual" in value.lower():
-                return idx
-    return None
+                annual_rows.append(idx)
+                break
+    return annual_rows
 
-def extract_columns(df, annual_row):
+def extract_columns_multiple_rows(df, annual_rows):
     # Find the required columns
     grade_col = find_column(df, "grade")
     
@@ -116,14 +118,19 @@ def extract_columns(df, annual_row):
     # Find the last step column
     last_step_col = find_last_step_column(df)
     
-    # Create a new dataframe with the required columns
-    if grade_col and first_step_col and last_step_col:
-        result_df = pd.DataFrame({
-            'Grade': [df.iloc[annual_row][grade_col]],
-            'Term': ['Annual'],
-            df.columns[first_step_col]: [df.iloc[annual_row][first_step_col]],
-            df.columns[last_step_col]: [df.iloc[annual_row][last_step_col]]
-        })
+    # Create a new dataframe with the required columns for all Annual rows
+    if grade_col is not None and first_step_col is not None and last_step_col is not None:
+        data = []
+        for row_idx in annual_rows:
+            row_data = {
+                'Grade': df.iloc[row_idx][grade_col],
+                'Term': 'Annual',
+                df.columns[first_step_col]: df.iloc[row_idx][first_step_col],
+                df.columns[last_step_col]: df.iloc[row_idx][last_step_col]
+            }
+            data.append(row_data)
+        
+        result_df = pd.DataFrame(data)
         return result_df
     else:
         print("  Could not find all required columns")
@@ -136,10 +143,11 @@ def find_column(df, column_pattern):
     return None
 
 def find_first_step_column(df):
-    # Try to find "Entry Rate" first
-    entry_col = find_column(df, "entry rate")
-    if entry_col is not None:
-        return entry_col
+    # Try to find "Entry Rate" first (including variations like "Entry Rate 1")
+    for pattern in ["entry rate", "entry rate 1"]:
+        entry_col = find_column(df, pattern)
+        if entry_col is not None:
+            return entry_col
     
     # If not found, try to find "1st Step"
     return find_column(df, "1st step")
