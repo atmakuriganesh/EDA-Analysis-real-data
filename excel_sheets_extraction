@@ -1,0 +1,162 @@
+import os
+import pandas as pd
+import glob
+import re
+
+def process_excel_files(folder_path):
+    # Get all Excel files in the folder
+    excel_files = glob.glob(os.path.join(folder_path, "*.xlsx")) + glob.glob(os.path.join(folder_path, "*.xls"))
+    
+    # Dictionary to store dataframes with title as key
+    all_dataframes = {}
+    
+    for file_path in excel_files:
+        print(f"Processing file: {os.path.basename(file_path)}")
+        
+        # Load the Excel file
+        xl = pd.ExcelFile(file_path)
+        
+        # Filter sheets that match the pattern
+        target_sheets = [sheet for sheet in xl.sheet_names if sheet in ['6.1.23', '12.1.23']]
+        
+        if not target_sheets:
+            print(f"  No target sheets found in {os.path.basename(file_path)}")
+            continue
+        
+        for sheet_name in target_sheets:
+            print(f"  Processing sheet: {sheet_name}")
+            
+            # Read the Excel sheet
+            df = pd.read_excel(file_path, sheet_name=sheet_name, header=None)
+            
+            # Try to find the title, preferring row 5 (index 4)
+            title = extract_title(df)
+            if not title:
+                title = f"Table_from_{os.path.basename(file_path)}_{sheet_name}"
+            
+            print(f"  Table title: {title}")
+            
+            # Find the header row (usually the row with 'Grade', 'Entry Rate', etc.)
+            header_row_idx = find_header_row(df)
+            
+            if header_row_idx is not None:
+                # Read the Excel sheet again with the correct header
+                df = pd.read_excel(file_path, sheet_name=sheet_name, header=header_row_idx)
+                
+                # Clean up column names
+                df.columns = [str(col).strip() for col in df.columns]
+                
+                # Find the Annual row
+                annual_row = find_annual_row(df)
+                
+                if annual_row is not None:
+                    # Extract the required columns
+                    result_df = extract_columns(df, annual_row)
+                    
+                    # Store the dataframe with the title as key
+                    all_dataframes[title] = result_df
+                    print(f"  Extracted data for: {title}")
+                else:
+                    print(f"  No Annual row found in sheet {sheet_name}")
+            else:
+                print(f"  No header row found in sheet {sheet_name}")
+    
+    # Save each dataframe to a separate Excel file
+    if all_dataframes:
+        output_dir = os.path.join(folder_path, "extracted_data")
+        os.makedirs(output_dir, exist_ok=True)
+        
+        for title, df in all_dataframes.items():
+            # Create a valid filename from the title
+            filename = re.sub(r'[^\w\s-]', '', title).strip().replace(' ', '_')
+            output_path = os.path.join(output_dir, f"{filename}.xlsx")
+            df.to_excel(output_path, index=False)
+            print(f"\nSaved dataframe '{title}' to: {output_path}")
+    else:
+        print("\nNo data was extracted from any of the files.")
+    
+    return all_dataframes
+
+def extract_title(df):
+    # Prioritize row 5 (index 4) first, then try row 4 (index 3)
+    for row_idx in [4, 3]:
+        if row_idx < df.shape[0]:
+            row_values = [str(val).strip() for val in df.iloc[row_idx] if pd.notna(val) and str(val).strip()]
+            if row_values:
+                # Join all non-empty strings in the row to form the complete title
+                title = " ".join(row_values)
+                return title
+    return None
+
+def find_header_row(df):
+    # Look for a row containing "Grade" and "Entry Rate" or "1st Step"
+    for idx, row in df.iterrows():
+        row_values = [str(val).lower() if pd.notna(val) else "" for val in row]
+        row_text = " ".join(row_values)
+        
+        if ("grade" in row_text) and (("entry rate" in row_text) or ("1st step" in row_text) or ("step" in row_text)):
+            return idx
+    return None
+
+def find_annual_row(df):
+    # Look for a row containing "Annual"
+    for idx, row in df.iterrows():
+        for value in row:
+            if isinstance(value, str) and "annual" in value.lower():
+                return idx
+    return None
+
+def extract_columns(df, annual_row):
+    # Find the required columns
+    grade_col = find_column(df, "grade")
+    
+    # Find the first step column (Entry Rate or 1st Step)
+    first_step_col = find_first_step_column(df)
+    
+    # Find the last step column
+    last_step_col = find_last_step_column(df)
+    
+    # Create a new dataframe with the required columns
+    if grade_col and first_step_col and last_step_col:
+        result_df = pd.DataFrame({
+            'Grade': [df.iloc[annual_row][grade_col]],
+            'Term': ['Annual'],
+            df.columns[first_step_col]: [df.iloc[annual_row][first_step_col]],
+            df.columns[last_step_col]: [df.iloc[annual_row][last_step_col]]
+        })
+        return result_df
+    else:
+        print("  Could not find all required columns")
+        return pd.DataFrame()
+
+def find_column(df, column_pattern):
+    for i, col in enumerate(df.columns):
+        if isinstance(col, str) and column_pattern.lower() in col.lower():
+            return i
+    return None
+
+def find_first_step_column(df):
+    # Try to find "Entry Rate" first
+    entry_col = find_column(df, "entry rate")
+    if entry_col is not None:
+        return entry_col
+    
+    # If not found, try to find "1st Step"
+    return find_column(df, "1st step")
+
+def find_last_step_column(df):
+    step_columns = []
+    for i, col in enumerate(df.columns):
+        if isinstance(col, str) and re.search(r'\d+th step', col.lower()):
+            step_number = int(re.search(r'(\d+)th', col.lower()).group(1))
+            step_columns.append((step_number, i))
+    
+    if step_columns:
+        # Sort by step number and get the highest
+        return sorted(step_columns, key=lambda x: x[0], reverse=True)[0][1]
+    return None
+
+if __name__ == "__main__":
+    # Set the folder path containing the Excel files
+    folder_path = input("Enter the folder path containing Excel files: ")
+    dataframes = process_excel_files(folder_path)
