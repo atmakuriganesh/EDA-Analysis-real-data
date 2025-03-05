@@ -193,3 +193,239 @@ if __name__ == "__main__":
     print(f"Total Excel files processed: {len(glob.glob(os.path.join(folder_path, '*.xlsx'))) + len(glob.glob(os.path.join(folder_path, '*.xls')))}")
     print(f"Dataframes extracted and processed: {len(processed_dataframes)}")
     print(f"Files where no target sheets were found: {len(files_without_target_sheets)}")
+
+
+
+---------------------------------------------------------------------------------------------------------------------------
+
+import os
+import pandas as pd
+import glob
+import openpyxl
+
+def extract_and_process_specific_sheets(folder_path, target_sheet_names):
+    """
+    Extract specific sheets from Excel files and ignore hidden columns
+    
+    Args:
+        folder_path: Path to folder containing Excel files
+        target_sheet_names: List of sheet names to extract
+        
+    Returns:
+        Dictionary of processed dataframes and list of files without target sheets
+    """
+    # Get all Excel files in the folder
+    excel_files = glob.glob(os.path.join(folder_path, "*.xlsx")) + glob.glob(os.path.join(folder_path, "*.xls"))
+    
+    # Dictionary to store dataframes with file name and sheet as key
+    all_dataframes = {}
+    processed_dataframes = {}
+    
+    # List to track files where no target sheets were found
+    files_without_target_sheets = []
+    
+    for file_path in excel_files:
+        file_name = os.path.basename(file_path)
+        print(f"Processing file: {file_name}")
+        
+        try:
+            # Load the Excel file
+            xl = pd.ExcelFile(file_path)
+            
+            # Check if any of the target sheets exist
+            found_sheets = []
+            for sheet_name in target_sheet_names:
+                if sheet_name in xl.sheet_names:
+                    found_sheets.append(sheet_name)
+            
+            if found_sheets:
+                for sheet_name in found_sheets:
+                    print(f"  Found sheet '{sheet_name}' in {file_name}")
+                    
+                    # Get visible columns information (only works with xlsx files)
+                    visible_columns = None
+                    if file_path.endswith('.xlsx'):
+                        try:
+                            # Load the workbook using openpyxl to get column visibility info
+                            workbook = openpyxl.load_workbook(file_path)
+                            sheet = workbook[sheet_name]
+                            
+                            # Get visible columns (column indices that are not hidden)
+                            visible_columns = [i+1 for i in range(sheet.max_column) if not sheet.column_dimensions[openpyxl.utils.get_column_letter(i+1)].hidden]
+                            print(f"  Found {len(visible_columns)} visible columns out of {sheet.max_column} total columns")
+                        except Exception as e:
+                            print(f"  Could not determine hidden columns: {str(e)}")
+                    
+                    # Read the Excel sheet into a dataframe
+                    if visible_columns and len(visible_columns) > 0:
+                        # Read only visible columns
+                        df = pd.read_excel(file_path, sheet_name=sheet_name, usecols=visible_columns)
+                        print(f"  Reading only visible columns")
+                    else:
+                        # Read all columns if we couldn't determine which are hidden
+                        df = pd.read_excel(file_path, sheet_name=sheet_name)
+                    
+                    # Store the raw dataframe
+                    key = f"{file_name}_{sheet_name}"
+                    all_dataframes[key] = df
+                    
+                    # Process the dataframe
+                    processed_df = process_dataframe(df)
+                    if processed_df is not None and not processed_df.empty:
+                        processed_dataframes[key] = processed_df
+                        print(f"  Successfully processed '{sheet_name}' from {file_name}")
+                        
+                        # Display a sample of the processed dataframe
+                        print("\nSample of processed data:")
+                        print(processed_df.head())
+                        print("\n" + "-"*80 + "\n")
+                    else:
+                        print(f"  Could not process '{sheet_name}' from {file_name} or no data after processing")
+            else:
+                print(f"  No target sheets found in {file_name}")
+                files_without_target_sheets.append(file_name)
+            
+        except Exception as e:
+            print(f"  Error processing file {file_name}: {str(e)}")
+            files_without_target_sheets.append(file_name)
+    
+    print(f"\nExtracted {len(all_dataframes)} dataframes from {len(excel_files) - len(files_without_target_sheets)} files")
+    print(f"Successfully processed {len(processed_dataframes)} dataframes")
+    
+    if files_without_target_sheets:
+        print(f"\nFiles without any target sheets: {len(files_without_target_sheets)}")
+        for file in files_without_target_sheets:
+            print(f"  - {file}")
+    
+    return processed_dataframes, files_without_target_sheets
+
+def process_dataframe(df):
+    """
+    Process a dataframe to clean and format the data
+    
+    Args:
+        df: Raw dataframe from Excel
+    
+    Returns:
+        Processed dataframe
+    """
+    try:
+        # Make a copy to avoid modifying the original
+        df = df.copy()
+        
+        # Drop empty rows and columns
+        df = df.dropna(how='all').dropna(axis=1, how='all')
+        
+        # Clean column names - remove leading/trailing spaces
+        df.columns = df.columns.str.strip()
+        
+        # Try to identify if this is a salary/grade table
+        key_columns = ['GRADE', 'STEP', 'HOURLY', 'BI-WEEKLY', 'ANNUAL', 'OLD GRADE', 'CURRENT GRADE']
+        column_matches = [col for col in df.columns if any(key in col.upper() for key in key_columns)]
+        
+        if len(column_matches) >= 3:  # If we have at least 3 of the expected columns
+            # Normalize column names - case insensitive matching
+            column_mapping = {}
+            for col in df.columns:
+                col_upper = col.upper()
+                if 'OLD' in col_upper and 'GRADE' in col_upper:
+                    column_mapping[col] = 'OLD GRADE'
+                elif 'CURRENT' in col_upper and 'GRADE' in col_upper:
+                    column_mapping[col] = 'CURRENT GRADE'
+                elif col_upper == 'GRADE':
+                    column_mapping[col] = 'GRADE'
+                elif 'STEP' in col_upper:
+                    column_mapping[col] = 'STEP'
+                elif 'HOUR' in col_upper:
+                    if not any(hour_col in column_mapping.values() for hour_col in ['HOURLY', 'HOURLY RATE']):
+                        column_mapping[col] = 'HOURLY'
+                elif 'BI' in col_upper and 'WEEK' in col_upper:
+                    if not any(bi_col in column_mapping.values() for bi_col in ['BI-WEEKLY', 'BIWEEKLY']):
+                        column_mapping[col] = 'BI-WEEKLY'
+                elif 'ANNUAL' in col_upper or 'YEARLY' in col_upper:
+                    column_mapping[col] = 'ANNUAL'
+            
+            # Rename columns
+            if column_mapping:
+                df = df.rename(columns=column_mapping)
+            
+            # Get the columns we want to keep
+            columns_to_keep = [col for col in df.columns if col in [
+                'OLD GRADE', 'CURRENT GRADE', 'GRADE', 'STEP', 'HOURLY', 'BI-WEEKLY', 'ANNUAL'
+            ]]
+            
+            if columns_to_keep:
+                # Keep only the relevant columns
+                df = df[columns_to_keep].copy()
+                
+                # Convert numeric columns to numeric type
+                numeric_columns = ['STEP', 'HOURLY', 'BI-WEEKLY', 'ANNUAL']
+                for col in numeric_columns:
+                    if col in df.columns:
+                        df[col] = pd.to_numeric(df[col], errors='coerce')
+                
+                # Format numeric columns
+                if 'HOURLY' in df.columns:
+                    df['HOURLY'] = df['HOURLY'].round(3)
+                
+                if 'BI-WEEKLY' in df.columns:
+                    df['BI-WEEKLY'] = df['BI-WEEKLY'].round(2)
+                
+                if 'ANNUAL' in df.columns:
+                    df['ANNUAL'] = df['ANNUAL'].round(0)
+                
+                # Drop rows with NaN in key columns
+                if 'STEP' in df.columns:
+                    df = df.dropna(subset=['STEP'])
+                
+                # Reset index
+                df = df.reset_index(drop=True)
+                
+                return df
+        
+        # If not enough matching columns, return the original dataframe after basic cleanup
+        return df
+            
+    except Exception as e:
+        print(f"  Error processing dataframe: {str(e)}")
+        return None
+
+if __name__ == "__main__":
+    # Set the folder path containing the Excel files
+    folder_path = input("Enter the folder path containing Excel files: ")
+    
+    # Define the target sheet names
+    target_sheet_names = [
+        '6.1.2021-25',
+        '6.1.2021-6.1.2025',
+        'DP1-DP3 2023',
+        'KP4 2023',
+        'KP3 2023',
+        'KP2 2023',
+        'KP1 2023',
+        'DP4 2023',
+        '2021-2025'
+    ]
+    
+    # Make sure openpyxl is installed
+    try:
+        import openpyxl
+    except ImportError:
+        print("The openpyxl library is required to detect hidden columns.")
+        print("Installing openpyxl...")
+        try:
+            import pip
+            pip.main(['install', 'openpyxl'])
+            print("Successfully installed openpyxl")
+        except Exception as e:
+            print(f"Could not install openpyxl: {str(e)}")
+            print("Please install it manually by running: pip install openpyxl")
+            print("Continuing without hidden column detection...")
+    
+    # Extract and process the sheets
+    processed_dataframes, files_without_target_sheets = extract_and_process_specific_sheets(folder_path, target_sheet_names)
+    
+    print("\nSummary:")
+    print(f"Total Excel files processed: {len(glob.glob(os.path.join(folder_path, '*.xlsx'))) + len(glob.glob(os.path.join(folder_path, '*.xls')))}")
+    print(f"Dataframes extracted and processed: {len(processed_dataframes)}")
+    print(f"Files where no target sheets were found: {len(files_without_target_sheets)}")
