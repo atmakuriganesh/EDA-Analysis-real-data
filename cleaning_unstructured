@@ -1,94 +1,72 @@
-import pandas as pd
-import numpy as np
-
-# Create a new dictionary to store the transformed dataframes
+# Create a new dictionary for transformed dataframes
 transformed_dataframes = {}
 
 for key, df in dataframes_1.items():
-    print(f"Processing dataframe: {key}")
+    # Create a new empty dataframe with our desired columns
+    new_df = pd.DataFrame(columns=['OLD GRADE', 'CURRENT GRADE', 'STEP', 'ANNUAL', 'category'])
     
-    # Make a copy to avoid modifying the original
-    temp_df = df.copy()
-    
-    # Find the row that contains our header labels
-    header_row_idx = None
-    for idx, row in temp_df.iterrows():
-        # Convert row values to strings for comparison
-        row_values = [str(val).upper() if not pd.isna(val) else "" for val in row.values]
-        
-        # Check if this row contains our target headers
-        if ('OLD GRADE' in row_values or 'OLD' in row_values) and \
-           ('CURRENT GRADE' in row_values or 'CURRENT' in row_values) and \
-           'STEP' in row_values:
-            header_row_idx = idx
-            print(f"Found header row at index {idx}: {row.values}")
+    # Find the row with 'OLD GRADE' or 'OLD' value
+    old_grade_idx = None
+    for idx, row in df.iterrows():
+        for val in row.values:
+            if isinstance(val, str) and ('OLD GRADE' in val or val == 'OLD'):
+                old_grade_idx = idx
+                break
+        if old_grade_idx is not None:
             break
     
-    if header_row_idx is not None:
-        # Use the identified row as headers
-        headers = temp_df.iloc[header_row_idx].values
+    if old_grade_idx is not None:
+        # We found the header row
+        header_row = df.iloc[old_grade_idx]
         
-        # Print what we found in the header row
-        print(f"Headers found: {headers}")
+        # Find the column indexes for each of our target columns
+        old_grade_col_idx = None
+        current_grade_col_idx = None
+        step_col_idx = None
+        annual_col_idx = None
         
-        # Get data rows (everything after the header row)
-        data_rows = temp_df.iloc[header_row_idx+1:].values
+        for i, val in enumerate(header_row):
+            if isinstance(val, str):
+                if 'OLD GRADE' in val or val == 'OLD':
+                    old_grade_col_idx = i
+                elif 'CURRENT GRADE' in val or val == 'CURRENT':
+                    current_grade_col_idx = i
+                elif val == 'STEP':
+                    step_col_idx = i
+                elif 'ANNUAL' in val:
+                    annual_col_idx = i  # Keep updating to get the last one
         
-        print(f"Number of data rows: {len(data_rows)}")
-        if len(data_rows) > 0:
-            print(f"First data row: {data_rows[0]}")
-        
-        # Create new dataframe with proper column names
-        new_df = pd.DataFrame(data_rows, columns=headers)
-        
-        # Find the columns we want to keep
-        old_grade_col = None
-        current_grade_col = None
-        step_col = None
-        annual_cols = []
-        
-        for col in new_df.columns:
-            col_str = str(col).upper()
-            if 'OLD GRADE' in col_str or col_str == 'OLD':
-                old_grade_col = col
-            elif 'CURRENT GRADE' in col_str or col_str == 'CURRENT':
-                current_grade_col = col
-            elif col_str == 'STEP':
-                step_col = col
-            elif 'ANNUAL' in col_str:
-                annual_cols.append(col)
-        
-        # Add category column
-        new_df['category'] = key
-        
-        # Create a new dataframe with only the columns we want
-        cols_to_keep = []
-        if old_grade_col:
-            cols_to_keep.append(old_grade_col)
-        if current_grade_col:
-            cols_to_keep.append(current_grade_col)
-        if step_col:
-            cols_to_keep.append(step_col)
-        if annual_cols:
-            cols_to_keep.append(annual_cols[-1])  # Only keep the last ANNUAL column
-        cols_to_keep.append('category')
-        
-        print(f"Columns to keep: {cols_to_keep}")
-        
-        # Select only the columns we want
-        final_df = new_df[cols_to_keep]
-        
-        # Less strict NaN filtering - only drop if ALL values are NaN
-        final_df = final_df.dropna(how='all')
-        
-        print(f"Final dataframe shape: {final_df.shape}")
-        
-        # Store in new dictionary
-        transformed_dataframes[key] = final_df
-    else:
-        print(f"No header row found for dataframe: {key}")
-        # If no header row found, create an empty dataframe with the required columns
-        transformed_dataframes[key] = pd.DataFrame(columns=['OLD GRADE', 'CURRENT GRADE', 'STEP', 'ANNUAL', 'category'])
+        # Extract data from rows below the header
+        for idx in range(old_grade_idx + 1, len(df)):
+            row = df.iloc[idx]
+            
+            # Skip rows with all NaN values
+            if row.isna().all():
+                continue
+                
+            new_row = {}
+            if old_grade_col_idx is not None:
+                new_row['OLD GRADE'] = row.iloc[old_grade_col_idx]
+            if current_grade_col_idx is not None:
+                new_row['CURRENT GRADE'] = row.iloc[current_grade_col_idx]
+            if step_col_idx is not None:
+                new_row['STEP'] = row.iloc[step_col_idx]
+            if annual_col_idx is not None:
+                new_row['ANNUAL'] = row.iloc[annual_col_idx]
+                
+            new_row['category'] = key
+            
+            # Append to our new dataframe
+            new_df = pd.concat([new_df, pd.DataFrame([new_row])], ignore_index=True)
+    
+    # Store the transformed dataframe
+    transformed_dataframes[key] = new_df
 
-# Replace original dataframes dictionary with transformed ones
+# Replace original dataframes with transformed ones
 dataframes_1 = transformed_dataframes
+
+# Check the output
+for key, df in dataframes_1.items():
+    print(f"\nDataframe: {key}")
+    print(f"Shape: {df.shape}")
+    print(df.head(3))
