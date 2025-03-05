@@ -2,69 +2,68 @@
 transformed_dataframes = {}
 
 for key, df in dataframes_1.items():
-    # Find the row with header information
-    header_row_idx = None
-    for idx, row in df.iterrows():
-        row_values = [str(val).upper() if not pd.isna(val) else "" for val in row.values]
-        if ('OLD GRADE' in row_values or 'OLD' in row_values) and \
-           ('STEP' in row_values):
-            header_row_idx = idx
+    # Make a copy of the original dataframe
+    df_copy = df.copy()
+    
+    # Find the row index that contains header information
+    header_row = None
+    for idx, row in df_copy.iterrows():
+        row_str = [str(x).upper() for x in row.values if not pd.isna(x)]
+        if 'OLD GRADE' in row_str or 'STEP' in row_str:
+            header_row = idx
             break
     
-    if header_row_idx is not None:
-        # Get header values
-        headers = df.iloc[header_row_idx].values
+    if header_row is not None:
+        # Get the column positions for each target field
+        headers = df_copy.iloc[header_row]
         
-        # Find column positions for each target column
-        old_grade_idx = None
-        current_grade_idx = None
-        step_idx = None
-        annual_idx = None
+        # Create a new dataframe with the proper structure
+        new_df = pd.DataFrame(columns=['OLD GRADE', 'CURRENT GRADE', 'STEP', 'ANNUAL', 'category'])
         
+        # Define a map to find our columns
+        col_positions = {}
         for i, val in enumerate(headers):
-            val_str = str(val).upper() if not pd.isna(val) else ""
+            if pd.isna(val):
+                continue
+            val_str = str(val).upper()
             if 'OLD GRADE' in val_str or val_str == 'OLD':
-                old_grade_idx = i
+                col_positions['OLD GRADE'] = i
             elif 'CURRENT GRADE' in val_str or val_str == 'CURRENT':
-                current_grade_idx = i
+                col_positions['CURRENT GRADE'] = i
             elif val_str == 'STEP':
-                step_idx = i
+                col_positions['STEP'] = i
             elif 'ANNUAL' in val_str:
-                annual_idx = i  # Last occurrence will be kept
+                col_positions['ANNUAL'] = i  # Will keep the last one
         
-        # Create a new DataFrame with just the columns we want
-        result_df = pd.DataFrame(columns=['OLD GRADE', 'CURRENT GRADE', 'STEP', 'ANNUAL', 'category'])
-        
-        # Process each data row
-        for i in range(header_row_idx + 1, len(df)):
-            row = df.iloc[i]
+        # Process each data row after the header
+        for i in range(header_row + 1, len(df_copy)):
+            row = df_copy.iloc[i]
             
-            # Skip completely empty rows
+            # Skip if all values are NaN
             if row.isna().all():
                 continue
-            
-            # Create a new row with just our desired columns
+                
             new_row = {'category': key}
+            for col_name, position in col_positions.items():
+                if position < len(row):
+                    new_row[col_name] = row.iloc[position]
             
-            if old_grade_idx is not None and old_grade_idx < len(row):
-                new_row['OLD GRADE'] = row.iloc[old_grade_idx]
-                
-            if current_grade_idx is not None and current_grade_idx < len(row):
-                new_row['CURRENT GRADE'] = row.iloc[current_grade_idx]
-                
-            if step_idx is not None and step_idx < len(row):
-                new_row['STEP'] = row.iloc[step_idx]
-                
-            if annual_idx is not None and annual_idx < len(row):
-                new_row['ANNUAL'] = row.iloc[annual_idx]
-            
-            # Add to result DataFrame
-            result_df = pd.concat([result_df, pd.DataFrame([new_row])], ignore_index=True)
+            # Add this row to our new dataframe
+            new_df = pd.concat([new_df, pd.DataFrame([new_row])], ignore_index=True)
         
-        transformed_dataframes[key] = result_df
+        transformed_dataframes[key] = new_df
     else:
-        # If no header row found, create an empty dataframe
+        # Create an empty dataframe if no header row found
         transformed_dataframes[key] = pd.DataFrame(columns=['OLD GRADE', 'CURRENT GRADE', 'STEP', 'ANNUAL', 'category'])
 
-# Replace original dataframes with transformed ones
+# Update the original dictionary
 dataframes_1 = transformed_dataframes
+
+# Check if we have data in the transformed dataframes
+for key, df in dataframes_1.items():
+    print(f"\nDataframe: {key}")
+    print(f"Shape: {df.shape}")
+    if not df.empty:
+        print(df.head(3))
+    else:
+        print("Empty dataframe")
