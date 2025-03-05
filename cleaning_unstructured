@@ -9,13 +9,12 @@ def clean_dataframe(df):
     
     # Step 3: Handle multiple ANNUAL columns by finding the last one
     # Get indices of all columns containing "ANNUAL" (case insensitive)
-    annual_columns = [i for i, col in enumerate(df.columns) 
+    annual_columns = [col for col in df.columns 
                      if isinstance(col, str) and "ANNUAL" in col.upper()]
     
-    # If multiple ANNUAL columns exist, get the index of the last one
+    # If multiple ANNUAL columns exist, get the last one
     if annual_columns:
-        last_annual_index = annual_columns[-1]
-        last_annual_col = df.columns[last_annual_index]
+        last_annual_col = annual_columns[-1]
     else:
         # If no ANNUAL column found, handle the error
         raise ValueError("No ANNUAL column found in the dataframe")
@@ -26,9 +25,10 @@ def clean_dataframe(df):
     # Rename the last ANNUAL column to standardize it
     df = df.rename(columns={last_annual_col: 'ANNUAL'})
     
-    # Optional: Convert the ANNUAL or STEP columns to numeric values
-    df['ANNUAL'] = pd.to_numeric(df['ANNUAL'], errors='coerce')
-    df['STEP'] = pd.to_numeric(df['STEP'], errors='coerce')
+    # Optional: Convert the ANNUAL or STEP columns to numeric values - FIXED ERROR HERE
+    # Use Series accessor to ensure we're passing a Series to pd.to_numeric
+    df['ANNUAL'] = pd.to_numeric(df['ANNUAL'].astype(str), errors='coerce')
+    df['STEP'] = pd.to_numeric(df['STEP'].astype(str), errors='coerce')
     
     return df
 
