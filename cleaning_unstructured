@@ -8,65 +8,72 @@ for key, df in dataframes_1.items():
     # Make a copy to avoid modifying the original
     temp_df = df.copy()
     
-    # Find the row index that contains our target headers
-    header_indices = []
-    for i, row in temp_df.iterrows():
-        if row.astype(str).str.contains('OLD GRADE').any() or \
-           row.astype(str).str.contains('CURRENT GRADE').any() or \
-           row.astype(str).str.contains('STEP').any() or \
-           row.astype(str).str.contains('ANNUAL').any():
-            header_indices.append(i)
-    
-    if header_indices:
-        # Get the lowest index as the header row
-        header_row = min(header_indices)
+    # Find the row that contains our header labels
+    header_row_idx = None
+    for idx, row in temp_df.iterrows():
+        # Convert row values to strings for comparison
+        row_values = [str(val).upper() for val in row.values]
         
-        # Get headers from the header row
-        headers = temp_df.iloc[header_row].values
+        # Check if this row contains our target headers
+        if ('OLD GRADE' in row_values or 'OLD' in row_values) and \
+           ('CURRENT GRADE' in row_values or 'CURRENT' in row_values) and \
+           'STEP' in row_values:
+            header_row_idx = idx
+            break
+    
+    if header_row_idx is not None:
+        # Use the identified row as headers
+        headers = temp_df.iloc[header_row_idx].values
         
         # Get data rows (everything after the header row)
-        data_rows = temp_df.iloc[header_row+1:].values
+        data_rows = temp_df.iloc[header_row_idx+1:].values
         
-        # Create new dataframe with raw headers and data
+        # Create new dataframe with proper column names
         new_df = pd.DataFrame(data_rows, columns=headers)
         
-        # Add category column if it doesn't exist
-        if 'category' not in new_df.columns:
-            new_df['category'] = key
-        
         # Find the columns we want to keep
-        cols_to_keep = []
+        old_grade_col = None
+        current_grade_col = None
+        step_col = None
         annual_cols = []
         
-        for i, col in enumerate(new_df.columns):
-            col_str = str(col)
-            if col_str == 'OLD GRADE':
-                cols_to_keep.append(col)
-            elif col_str == 'CURRENT GRADE':
-                cols_to_keep.append(col)
+        for col in new_df.columns:
+            col_str = str(col).upper()
+            if 'OLD GRADE' in col_str or col_str == 'OLD':
+                old_grade_col = col
+            elif 'CURRENT GRADE' in col_str or col_str == 'CURRENT':
+                current_grade_col = col
             elif col_str == 'STEP':
-                cols_to_keep.append(col)
-            elif col_str == 'ANNUAL':
+                step_col = col
+            elif 'ANNUAL' in col_str:
                 annual_cols.append(col)
         
-        # Add the last ANNUAL column if it exists
-        if annual_cols:
-            cols_to_keep.append(annual_cols[-1])  # Add only the last ANNUAL column
-        
         # Add category column
+        new_df['category'] = key
+        
+        # Create a new dataframe with only the columns we want
+        cols_to_keep = []
+        if old_grade_col:
+            cols_to_keep.append(old_grade_col)
+        if current_grade_col:
+            cols_to_keep.append(current_grade_col)
+        if step_col:
+            cols_to_keep.append(step_col)
+        if annual_cols:
+            cols_to_keep.append(annual_cols[-1])  # Only keep the last ANNUAL column
         cols_to_keep.append('category')
         
-        # Keep only the columns we want
-        new_df = new_df[cols_to_keep]
+        # Select only the columns we want
+        final_df = new_df[cols_to_keep]
         
         # Remove rows with all NaN values
-        new_df = new_df.dropna(how='all')
+        final_df = final_df.dropna(how='all')
         
         # Store in new dictionary
-        transformed_dataframes[key] = new_df
+        transformed_dataframes[key] = final_df
     else:
-        # Just in case no header row is found
-        transformed_dataframes[key] = pd.DataFrame()
+        # If no header row found, create an empty dataframe with the required columns
+        transformed_dataframes[key] = pd.DataFrame(columns=['OLD GRADE', 'CURRENT GRADE', 'STEP', 'ANNUAL', 'category'])
 
 # Replace original dataframes dictionary with transformed ones
 dataframes_1 = transformed_dataframes
