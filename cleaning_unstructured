@@ -1,92 +1,17 @@
-# Create a new dictionary for transformed dataframes
-transformed_dataframes = {}
+# Assuming the dataframe is already loaded as:
+# dataframes_1["RETRO PAYP033 SEIU Local 20 CCHHS Stroger Doctors Gr. KP1-4, DP4.xlsx_KP1 2023"]
 
-# Process each dataframe
-for key, df in dataframes_1.items():
-    print(f"Processing: {key}")
-    
-    # Convert to numpy array for direct manipulation
-    data = df.values
-    
-    # Find header row containing "OLD GRADE" and "STEP"
-    header_row = -1
-    for i, row in enumerate(data):
-        row_strings = [str(x).upper() if not pd.isna(x) else "" for x in row]
-        if "OLD GRADE" in row_strings and "STEP" in row_strings:
-            header_row = i
-            break
-    
-    if header_row >= 0:
-        # Find column positions
-        headers = data[header_row]
-        
-        # Find indexes of the columns we need
-        old_grade_idx = None
-        current_grade_idx = None
-        step_idx = None
-        annual_idx = None
-        
-        for i, col in enumerate(headers):
-            if pd.isna(col):
-                continue
-            col_str = str(col).upper()
-            if col_str == "OLD GRADE":
-                old_grade_idx = i
-            elif col_str == "CURRENT GRADE":
-                current_grade_idx = i
-            elif col_str == "STEP":
-                step_idx = i
-            elif col_str == "ANNUAL":
-                annual_idx = i
-        
-        # Create empty dataframe with our desired columns
-        columns = ["OLD GRADE", "CURRENT GRADE", "STEP", "ANNUAL", "category"]
-        new_df = pd.DataFrame(columns=columns)
-        
-        # Find the first data row (rows with "K" in the first column)
-        # Based on your screenshots, data rows start immediately after header
-        for i in range(header_row + 1, len(data)):
-            row = data[i]
-            
-            # Skip empty rows
-            if all(pd.isna(x) for x in row):
-                continue
-            
-            # Only include rows that have data in the format we need
-            # For KP dataframes, check if first column contains "K"
-            if len(row) > 0 and isinstance(row[0], (str, int, float)) and not pd.isna(row[0]):
-                row_data = {}
-                
-                # Extract values from identified columns
-                if old_grade_idx is not None and old_grade_idx < len(row):
-                    row_data["OLD GRADE"] = row[old_grade_idx]
-                if current_grade_idx is not None and current_grade_idx < len(row):
-                    row_data["CURRENT GRADE"] = row[current_grade_idx]
-                if step_idx is not None and step_idx < len(row):
-                    row_data["STEP"] = row[step_idx]
-                if annual_idx is not None and annual_idx < len(row):
-                    row_data["ANNUAL"] = row[annual_idx]
-                
-                # Add category
-                row_data["category"] = key
-                
-                # Add to dataframe if we have at least some data
-                if len(row_data) > 1:  # More than just category
-                    new_df = pd.concat([new_df, pd.DataFrame([row_data])], ignore_index=True)
-        
-        # Store the transformed dataframe
-        transformed_dataframes[key] = new_df
-    else:
-        # No header row found
-        print(f"No header row found in {key}")
-        transformed_dataframes[key] = pd.DataFrame(columns=["OLD GRADE", "CURRENT GRADE", "STEP", "ANNUAL", "category"])
+# Step 1: Remove the first 6 rows
+df = df.iloc[6:]
 
-# Replace original dataframes
-dataframes_1 = transformed_dataframes
+# Step 2: Set the 7th row (now the first row) as column headers
+new_headers = df.iloc[0].values
+df = df.iloc[1:].reset_index(drop=True)
+df.columns = new_headers
 
-# Print summary of results
-for key, df in dataframes_1.items():
-    print(f"\nDataframe: {key}")
-    print(f"Shape: {df.shape}")
-    if not df.empty:
-        print(df.head(3))
+# Step 3: Keep only the columns "OLD GRADE", "CURRENT GRADE", "STEP", and "ANNUAL"
+df = df[['OLD GRADE', 'CURRENT GRADE', 'STEP', 'ANNUAL']]
+
+# Optional: If you need to convert the ANNUAL or STEP columns to numeric values
+df['ANNUAL'] = pd.to_numeric(df['ANNUAL'])
+df['STEP'] = pd.to_numeric(df['STEP'])
