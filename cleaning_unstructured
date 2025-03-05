@@ -5,6 +5,8 @@ import numpy as np
 transformed_dataframes = {}
 
 for key, df in dataframes_1.items():
+    print(f"Processing dataframe: {key}")
+    
     # Make a copy to avoid modifying the original
     temp_df = df.copy()
     
@@ -12,21 +14,29 @@ for key, df in dataframes_1.items():
     header_row_idx = None
     for idx, row in temp_df.iterrows():
         # Convert row values to strings for comparison
-        row_values = [str(val).upper() for val in row.values]
+        row_values = [str(val).upper() if not pd.isna(val) else "" for val in row.values]
         
         # Check if this row contains our target headers
         if ('OLD GRADE' in row_values or 'OLD' in row_values) and \
            ('CURRENT GRADE' in row_values or 'CURRENT' in row_values) and \
            'STEP' in row_values:
             header_row_idx = idx
+            print(f"Found header row at index {idx}: {row.values}")
             break
     
     if header_row_idx is not None:
         # Use the identified row as headers
         headers = temp_df.iloc[header_row_idx].values
         
+        # Print what we found in the header row
+        print(f"Headers found: {headers}")
+        
         # Get data rows (everything after the header row)
         data_rows = temp_df.iloc[header_row_idx+1:].values
+        
+        print(f"Number of data rows: {len(data_rows)}")
+        if len(data_rows) > 0:
+            print(f"First data row: {data_rows[0]}")
         
         # Create new dataframe with proper column names
         new_df = pd.DataFrame(data_rows, columns=headers)
@@ -63,15 +73,20 @@ for key, df in dataframes_1.items():
             cols_to_keep.append(annual_cols[-1])  # Only keep the last ANNUAL column
         cols_to_keep.append('category')
         
+        print(f"Columns to keep: {cols_to_keep}")
+        
         # Select only the columns we want
         final_df = new_df[cols_to_keep]
         
-        # Remove rows with all NaN values
+        # Less strict NaN filtering - only drop if ALL values are NaN
         final_df = final_df.dropna(how='all')
+        
+        print(f"Final dataframe shape: {final_df.shape}")
         
         # Store in new dictionary
         transformed_dataframes[key] = final_df
     else:
+        print(f"No header row found for dataframe: {key}")
         # If no header row found, create an empty dataframe with the required columns
         transformed_dataframes[key] = pd.DataFrame(columns=['OLD GRADE', 'CURRENT GRADE', 'STEP', 'ANNUAL', 'category'])
 
