@@ -1,20 +1,23 @@
-df2 = dataframes_1["RETRO PAYP033 SEIU Local 20 CCHHS Stroger Doctors Gr. KP1-4, DP4.xlsx_KP2 2023"]
-# Step 1: Remove the first 6 rows
-df2 = df2.iloc[6:]
+# Merge all dataframes in the cleaned_dataframes dictionary
+def merge_all_dataframes(dataframes_dict):
+    # Convert the dictionary values to a list of dataframes
+    dfs_list = list(dataframes_dict.values())
+    
+    # Use pd.concat to combine all dataframes
+    # sort=False keeps the original column order
+    # ignore_index=True resets the index
+    # join='outer' ensures all columns from all dataframes are included
+    merged_df = pd.concat(dfs_list, sort=False, ignore_index=True, join='outer')
+    
+    # Missing values in columns not present in some dataframes will be NaN
+    return merged_df
 
-# Step 2: Set the 7th row (now the first row) as column headers
-new_headers = df2.iloc[0].values
-df2 = df2.iloc[1:].reset_index(drop=True)
-df2.columns = new_headers
+# Apply the function to merge all your dataframes
+merged_dataframe = merge_all_dataframes(cleaned_dataframes)
 
-# Step 3: Find all ANNUAL columns and get the last one
-annual_columns = [col for col in df2.columns if isinstance(col, str) and "ANNUAL" in str(col).upper()]
-last_annual_col = annual_columns[-1]  # This will select the rightmost ANNUAL column
+# Check the shape and columns of the merged dataframe
+print(f"Merged dataframe shape: {merged_dataframe.shape}")
+print(f"Merged dataframe columns: {merged_dataframe.columns.tolist()}")
 
-# Step 4: Keep only the columns "OLD GRADE", "CURRENT GRADE", "STEP", and the last "ANNUAL"
-df2 = df2[['OLD GRADE', 'CURRENT GRADE', 'STEP', last_annual_col]]
-
-# Rename the last ANNUAL column to standardize it
-df2 = df2.rename(columns={last_annual_col: 'ANNUAL'})
-
-dataframes_1["RETRO PAYP033 SEIU Local 20 CCHHS Stroger Doctors Gr. KP1-4, DP4.xlsx_KP2 2023"] = df2
+# Optional: Fill NaN values with a specific value if needed
+# merged_dataframe = merged_dataframe.fillna(0)  # or any other value you prefer
