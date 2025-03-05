@@ -1,77 +1,69 @@
+import pandas as pd
+import numpy as np
+
 # Create a new dictionary for transformed dataframes
 transformed_dataframes = {}
 
 for key, df in dataframes_1.items():
-    # Find the row that contains "OLD GRADE" and "STEP"
-    header_row_idx = None
-    for idx, row in df.iterrows():
-        # Convert values to strings for comparison
-        row_str = [str(val).upper() if not pd.isna(val) else "" for val in row.values]
-        if "OLD GRADE" in row_str and "STEP" in row_str:
-            header_row_idx = idx
+    # Convert to numpy array for easier manipulation
+    array_data = df.values
+    
+    # Find the row containing 'OLD GRADE' or 'STEP'
+    header_row = -1
+    for i, row in enumerate(array_data):
+        row_as_str = [str(x).upper() for x in row if not pd.isna(x)]
+        if 'OLD GRADE' in row_as_str and 'STEP' in row_as_str:
+            header_row = i
             break
     
-    if header_row_idx is not None:
-        # Get headers
-        headers = df.iloc[header_row_idx].tolist()
-        
-        # Find column positions for our target columns
-        old_grade_pos = -1
-        current_grade_pos = -1
-        step_pos = -1
-        annual_pos = -1
-        
-        for i, val in enumerate(headers):
+    if header_row >= 0:
+        # Find column positions for each target field
+        cols = {}
+        for j, val in enumerate(array_data[header_row]):
             if pd.isna(val):
                 continue
+                
             val_str = str(val).upper()
-            if val_str == "OLD GRADE":
-                old_grade_pos = i
-            elif val_str == "CURRENT GRADE":
-                current_grade_pos = i
-            elif val_str == "STEP":
-                step_pos = i
-            elif val_str == "ANNUAL":
-                annual_pos = i  # Last occurrence will be kept
+            if val_str == 'OLD GRADE':
+                cols['OLD GRADE'] = j
+            elif val_str == 'CURRENT GRADE':
+                cols['CURRENT GRADE'] = j
+            elif val_str == 'STEP':
+                cols['STEP'] = j
+            elif val_str == 'ANNUAL':
+                cols['ANNUAL'] = j  # Will keep the last one
         
         # Create a new dataframe
-        new_df = pd.DataFrame(columns=["OLD GRADE", "CURRENT GRADE", "STEP", "ANNUAL", "category"])
+        result = []
         
-        # Add data rows (rows after the header)
-        for i in range(header_row_idx + 1, len(df)):
-            row_data = df.iloc[i].tolist()
+        # Extract data from rows after the header
+        for i in range(header_row + 1, len(array_data)):
+            row = array_data[i]
             
-            # Skip completely empty rows
-            if all(pd.isna(val) for val in row_data):
+            # Skip if all values are NaN
+            if all(pd.isna(x) for x in row):
                 continue
             
-            # Create a new row
-            new_row = {"category": key}
+            row_data = {'category': key}
+            for col_name, j in cols.items():
+                if j < len(row):
+                    row_data[col_name] = row[j]
             
-            if old_grade_pos >= 0 and old_grade_pos < len(row_data):
-                new_row["OLD GRADE"] = row_data[old_grade_pos]
-            
-            if current_grade_pos >= 0 and current_grade_pos < len(row_data):
-                new_row["CURRENT GRADE"] = row_data[current_grade_pos]
-            
-            if step_pos >= 0 and step_pos < len(row_data):
-                new_row["STEP"] = row_data[step_pos]
-            
-            if annual_pos >= 0 and annual_pos < len(row_data):
-                new_row["ANNUAL"] = row_data[annual_pos]
-            
-            # Add to dataframe
-            new_df = pd.concat([new_df, pd.DataFrame([new_row])], ignore_index=True)
+            result.append(row_data)
         
-        transformed_dataframes[key] = new_df
+        # Create the final dataframe
+        if result:
+            transformed_dataframes[key] = pd.DataFrame(result)
+        else:
+            transformed_dataframes[key] = pd.DataFrame(columns=['OLD GRADE', 'CURRENT GRADE', 'STEP', 'ANNUAL', 'category'])
     else:
-        # If no header row found, create an empty dataframe
-        transformed_dataframes[key] = pd.DataFrame(columns=["OLD GRADE", "CURRENT GRADE", "STEP", "ANNUAL", "category"])
+        # No header found
+        transformed_dataframes[key] = pd.DataFrame(columns=['OLD GRADE', 'CURRENT GRADE', 'STEP', 'ANNUAL', 'category'])
 
-# Replace original dataframes dictionary with transformed ones
+# Replace original dataframes
 dataframes_1 = transformed_dataframes
 
-# Display first 5 rows of first dataframe to verify
+# Print a sample to verify
 key = list(dataframes_1.keys())[0]
 print(f"Transformed dataframe: {key}")
-print(dataframes_1[key].head(5))
+print(dataframes_1[key].head())
