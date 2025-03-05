@@ -5,44 +5,32 @@ def clean_dataframe(df):
     # Step 2: Set the 7th row (now the first row) as column headers
     new_headers = df.iloc[0].values
     df = df.iloc[1:].reset_index(drop=True)
+    
+    # Convert new_headers to strings to ensure they're all string type
+    new_headers = [str(header) for header in new_headers]
     df.columns = new_headers
     
-    # Step 3: Handle multiple ANNUAL columns by finding the last one
-    # Get indices of all columns containing "ANNUAL" (case insensitive)
-    annual_columns = [col for col in df.columns 
-                     if isinstance(col, str) and "ANNUAL" in col.upper()]
-    
-    # If multiple ANNUAL columns exist, get the last one
+    # Step 3: Find the last ANNUAL column
+    annual_columns = [col for col in df.columns if "ANNUAL" in col.upper()]
     if annual_columns:
         last_annual_col = annual_columns[-1]
     else:
-        # If no ANNUAL column found, handle the error
         raise ValueError("No ANNUAL column found in the dataframe")
     
-    # Keep only the columns "OLD GRADE", "CURRENT GRADE", "STEP", and the last "ANNUAL"
+    # Keep only the necessary columns
     df = df[['OLD GRADE', 'CURRENT GRADE', 'STEP', last_annual_col]]
     
-    # Rename the last ANNUAL column to standardize it
-    df = df.rename(columns={last_annual_col: 'ANNUAL'})
+    # Rename the last ANNUAL column
+    column_mapping = {last_annual_col: 'ANNUAL'}
+    df = df.rename(columns=column_mapping)
     
-    # Optional: Convert the ANNUAL or STEP columns to numeric values - FIXED ERROR HERE
-    # Use Series accessor to ensure we're passing a Series to pd.to_numeric
-    df['ANNUAL'] = pd.to_numeric(df['ANNUAL'].astype(str), errors='coerce')
-    df['STEP'] = pd.to_numeric(df['STEP'].astype(str), errors='coerce')
+    # Direct conversion - since we know they're all numbers
+    # First, make sure there are no empty or NaN values
+    df['ANNUAL'] = df['ANNUAL'].fillna(0)
+    df['STEP'] = df['STEP'].fillna(0)
+    
+    # Then convert to integers
+    df['ANNUAL'] = df['ANNUAL'].astype(int)
+    df['STEP'] = df['STEP'].astype(int)
     
     return df
-
-
-# Process multiple dataframes
-df1 = clean_dataframe(dataframes_1["RETRO PAYP033 SEIU Local 20 CCHHS Stroger Doctors Gr. KP1-4, DP4.xlsx_KP1 2023"])
-df2 = clean_dataframe(dataframes_1["RETRO PAYP033 SEIU Local 20 CCHHS Stroger Doctors Gr. KP1-4, DP4.xlsx_KP2 2023"])
-df3 = clean_dataframe(dataframes_1["RETRO PAYP033 SEIU Local 20 CCHHS Stroger Doctors Gr. KP1-4, DP4.xlsx_KP3 2023"])
-df4 = clean_dataframe(dataframes_1["RETRO PAYP033 SEIU Local 20 CCHHS Stroger Doctors Gr. KP1-4, DP4.xlsx_KP4 2023"])
-df5 = clean_dataframe(dataframes_1["RETRO PAYP033 SEIU Local 20 CCHHS Stroger Doctors Gr. KP1-4, DP4.xlsx_DP4 2023"])
-
-# Assign back to the original dictionary if needed
-dataframes_1["RETRO PAYP033 SEIU Local 20 CCHHS Stroger Doctors Gr. KP1-4, DP4.xlsx_KP1 2023"] = df1
-dataframes_1["RETRO PAYP033 SEIU Local 20 CCHHS Stroger Doctors Gr. KP1-4, DP4.xlsx_KP2 2023"] = df2
-dataframes_1["RETRO PAYP033 SEIU Local 20 CCHHS Stroger Doctors Gr. KP1-4, DP4.xlsx_KP3 2023"] = df3
-dataframes_1["RETRO PAYP033 SEIU Local 20 CCHHS Stroger Doctors Gr. KP1-4, DP4.xlsx_KP4 2023"] = df4
-dataframes_1["RETRO PAYP033 SEIU Local 20 CCHHS Stroger Doctors Gr. KP1-4, DP4.xlsx_DP4 2023"] = df5
