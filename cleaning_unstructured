@@ -8,7 +8,7 @@ for key, df in dataframes_1.items():
     # Make a copy to avoid modifying the original
     temp_df = df.copy()
     
-    # Find the row index that contains "OLD GRADE", "CURRENT GRADE", "STEP", "ANNUAL"
+    # Find the row index that contains our target headers
     header_indices = []
     for i, row in temp_df.iterrows():
         if row.astype(str).str.contains('OLD GRADE').any() or \
@@ -30,17 +30,34 @@ for key, df in dataframes_1.items():
         # Create new dataframe with raw headers and data
         new_df = pd.DataFrame(data_rows, columns=headers)
         
-        # Handle duplicate 'ANNUAL' columns - keep only the last one
-        # First get column positions where 'ANNUAL' appears
-        annual_cols = [i for i, header in enumerate(headers) if str(header) == 'ANNUAL']
+        # Add category column if it doesn't exist
+        if 'category' not in new_df.columns:
+            new_df['category'] = key
         
-        # If multiple ANNUAL columns exist, keep only the last one
-        if len(annual_cols) > 1:
-            cols_to_drop = annual_cols[:-1]  # All except the last one
-            new_df = new_df.drop(new_df.columns[cols_to_drop], axis=1)
+        # Find the columns we want to keep
+        cols_to_keep = []
+        annual_cols = []
         
-        # Add category column with the dataframe name
-        new_df['category'] = key
+        for i, col in enumerate(new_df.columns):
+            col_str = str(col)
+            if col_str == 'OLD GRADE':
+                cols_to_keep.append(col)
+            elif col_str == 'CURRENT GRADE':
+                cols_to_keep.append(col)
+            elif col_str == 'STEP':
+                cols_to_keep.append(col)
+            elif col_str == 'ANNUAL':
+                annual_cols.append(col)
+        
+        # Add the last ANNUAL column if it exists
+        if annual_cols:
+            cols_to_keep.append(annual_cols[-1])  # Add only the last ANNUAL column
+        
+        # Add category column
+        cols_to_keep.append('category')
+        
+        # Keep only the columns we want
+        new_df = new_df[cols_to_keep]
         
         # Remove rows with all NaN values
         new_df = new_df.dropna(how='all')
@@ -48,10 +65,8 @@ for key, df in dataframes_1.items():
         # Store in new dictionary
         transformed_dataframes[key] = new_df
     else:
-        # If no header row found, just add the category and remove all-NaN rows
-        temp_df['category'] = key
-        temp_df = temp_df.dropna(how='all')
-        transformed_dataframes[key] = temp_df
+        # Just in case no header row is found
+        transformed_dataframes[key] = pd.DataFrame()
 
-# Replace original dataframes dictionary with transformed one if needed
+# Replace original dataframes dictionary with transformed ones
 dataframes_1 = transformed_dataframes
