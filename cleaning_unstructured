@@ -1,23 +1,26 @@
-# Merge all dataframes in the cleaned_dataframes dictionary
-def merge_all_dataframes(dataframes_dict):
-    # Convert the dictionary values to a list of dataframes
-    dfs_list = list(dataframes_dict.values())
+import pandas as pd
+
+# Define the keys from your dataframes_1 dictionary
+keys = [
+    "RETRO PAYP033 SEIU Local 20 CCHHS Stroger Doctors Gr. KP1-4, DP4.xlsx_KP3_2023",
+    "RETRO PAYP033 SEIU Local 20 CCHHS Stroger Doctors Gr. KP1-4, DP4.xlsx_KP4_2023",
+    "RETRO PAYP033 SEIU Local 20 CCHHS Stroger Doctors Gr. KP1-4, DP4.xlsx_KP2_2023",
+    "RETRO PAYP033 SEIU Local 20 CCHHS Stroger Doctors Gr. KP1-4, DP4.xlsx_KP1_2023",
+    "RETRO PAYP033 SEIU Local 20 CCHHS Stroger Doctors Gr. KP1-4, DP4.xlsx_DP4_2023",
+    "RETRO PAYP033 SEIU Local 20 Stroger Doctors Gr. DP1-DP3.xlsx_DP1-DP3_2023"
+]
+
+# Create an empty list to store all dataframes
+all_dfs = []
+
+# Loop through each key and append the corresponding dataframe to the list
+for key in keys:
+    # Assuming dataframes_1 is a dictionary containing your dataframes
+    # Add the corresponding dataframe to our list
+    all_dfs.append(dataframes_1[key])
     
-    # Use pd.concat to combine all dataframes
-    # sort=False keeps the original column order
-    # ignore_index=True resets the index
-    # join='outer' ensures all columns from all dataframes are included
-    merged_df = pd.concat(dfs_list, sort=False, ignore_index=True, join='outer')
-    
-    # Missing values in columns not present in some dataframes will be NaN
-    return merged_df
+    # Print information about the dataframe being added (optional)
+    print(f"Adding {key}: {len(dataframes_1[key])} rows, {dataframes_1[key].columns.tolist()} columns")
 
-# Apply the function to merge all your dataframes
-merged_dataframe = merge_all_dataframes(cleaned_dataframes)
-
-# Check the shape and columns of the merged dataframe
-print(f"Merged dataframe shape: {merged_dataframe.shape}")
-print(f"Merged dataframe columns: {merged_dataframe.columns.tolist()}")
-
-# Optional: Fill NaN values with a specific value if needed
-# merged_dataframe = merged_dataframe.fillna(0)  # or any other value you prefer
+# Merge all dataframes into a single dataframe
+merged_df = pd.concat(all_dfs, ignore_index=True)
