@@ -4,3 +4,5 @@
 
 # Finding outliers in quartile statistics (Q1/Q3) is unconventional as they're already summary metrics
 # Consider analyzing pattern deviations in quartile values rather than treating them as traditional outliers
+
+# The visualization (boxplot) shows salary distribution by family/department with good variation - some departments have higher median salaries and wider ranges than others 
