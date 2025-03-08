@@ -1,76 +1,28 @@
-def find_unique_columns(df_1W, df_OW):
-    """
-    Find columns that are unique to each dataframe and their union.
-    
-    Parameters:
-    df_1W (DataFrame): First dataframe
-    df_OW (DataFrame): Second dataframe
-    
-    Returns:
-    tuple: (unique_to_df_1W, unique_to_df_OW, all_unique_columns)
-    """
-    # Get column headings from both dataframes
-    columns_headings_df_1W = df_1W.columns.tolist()
-    columns_headings_df_OW = df_OW.columns.tolist()
-    
-    # Convert to sets for set operations
-    set1W = set(columns_headings_df_1W)
-    setOW = set(columns_headings_df_OW)
-    
-    # Find columns unique to each dataframe
-    only_in_1W = set1W - setOW
-    only_in_OW = setOW - set1W
-    
-    # Find union of unique columns
-    all_unique = only_in_1W.union(only_in_OW)
-    
-    return list(only_in_1W), list(only_in_OW), list(all_unique)
-
-
-def print_unique_columns_stats(df_1W, df_OW):
-    """
-    Print statistics about unique columns in the dataframes.
-    
-    Parameters:
-    df_1W (DataFrame): First dataframe
-    df_OW (DataFrame): Second dataframe
-    """
-    unique_to_1W, unique_to_OW, all_unique = find_unique_columns(df_1W, df_OW)
-    
-    print(len(unique_to_1W))
-    print("/n")
-    print(len(unique_to_OW))
-    print("/n")
-    print(len(all_unique))
-
-
-# For just getting the unique columns lists
-unique_to_1W, unique_to_OW, all_unique = find_unique_columns(df_1W, df_OW)
-
-# Or to recreate the original output
-print_unique_columns_stats(df_1W, df_OW)
-
-----------------------------------------------
 from IPython.display import display
 import pandas as pd
 
 def compare_dataframe_columns(df_IW, df_OW):
     """
     Compare column counts between two dataframes and return a DataFrame
-    showing comparison results.
+    showing comparison results along with match counts.
     
     Parameters:
     df_IW (DataFrame): First dataframe (IW)
     df_OW (DataFrame): Second dataframe (OW)
     
     Returns:
-    DataFrame: Comparison results with columns for name, counts, and match status
+    tuple: (result_df, match_count, no_match_count) containing:
+        - DataFrame with comparison results
+        - Count of matching columns
+        - Count of non-matching columns
     """
     # Get all unique column names from both datasets
     all_columns = set(df_IW.columns).union(set(df_OW.columns))
     
     # Initialize results list
     comparison_result = []
+    match_count = 0
+    no_match_count = 0
     
     # Compare counts for each column
     for column in all_columns:
@@ -81,8 +33,10 @@ def compare_dataframe_columns(df_IW, df_OW):
         # Compare counts
         if iw_count == ow_count:
             match = "Match"
+            match_count += 1
         else:
             match = "No Match"
+            no_match_count += 1
             
         # Append results
         comparison_result.append([column, iw_count, ow_count, match])
@@ -90,15 +44,22 @@ def compare_dataframe_columns(df_IW, df_OW):
     # Convert results into DataFrame
     result_df = pd.DataFrame(comparison_result, columns=["Column Name", "IW Count", "OW Count", "Compare Result"])
     
-    return result_df
+    return result_df, match_count, no_match_count
 
 def display_comparison_results(df_IW, df_OW):
     """
-    Compare dataframe columns and display the results.
+    Compare dataframe columns, display the results, and print match/no match counts.
     
     Parameters:
     df_IW (DataFrame): First dataframe (IW)
     df_OW (DataFrame): Second dataframe (OW)
     """
-    result_df = compare_dataframe_columns(df_IW, df_OW)
+    result_df, match_count, no_match_count = compare_dataframe_columns(df_IW, df_OW)
     display(result_df)
+    
+    print(f"Match count: {match_count}")
+    print(f"No Match count: {no_match_count}")
+    print(f"Total columns compared: {match_count + no_match_count}")
+
+# Call the function with your dataframes
+display_comparison_results(df_IW, df_OW)
