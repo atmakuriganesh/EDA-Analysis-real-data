@@ -1,3 +1,6 @@
 # Count columns with and without outliers in both dataframes and compare
 # Summarizes findings to show what percentage of numerical columns contain outliers
 # Both datasets exhibit outliers in over 85% of their numerical columns, indicating significant data variability
+
+# Finding outliers in quartile statistics (Q1/Q3) is unconventional as they're already summary metrics
+# Consider analyzing pattern deviations in quartile values rather than treating them as traditional outliers
