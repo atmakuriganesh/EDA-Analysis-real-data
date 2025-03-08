@@ -66,3 +66,38 @@ print(outlier_df_OW)
 print("\n--- Comparison Summary ---")
 print(f"IW: {sum(outlier_df_IW['Outlier_Flag'] == 'Y')}/{len(outlier_df_IW)} columns have outliers")
 print(f"OW: {sum(outlier_df_OW['Outlier_Flag'] == 'Y')}/{len(outlier_df_OW)} columns have outliers")
+
+------------------------------------
+def get_numerical_features(df):
+    """Extract numerical features (int64 and float64) from dataframe"""
+    return df.select_dtypes(include=['int64', 'float64'])
+
+def get_categorical_features(df):
+    """Extract categorical features (object type) from dataframe"""
+    return df.select_dtypes(include=['object'])
+
+def categorize_features(df_iw, df_ow):
+    """
+    Categorize features from both internal and external workforce dataframes
+    
+    Parameters:
+    df_iw - Internal workforce dataframe
+    df_ow - External workforce dataframe
+    
+    Returns:
+    Dictionary containing all categorized features
+    """
+    # Process internal workforce data
+    numerical_features_df_iw_new = get_numerical_features(df_iw)
+    categorical_features_df_iw_new = get_categorical_features(df_iw)
+    
+    # Process external workforce data
+    numerical_features_df_ow_new = get_numerical_features(df_ow)
+    categorical_features_df_ow_new = get_categorical_features(df_ow)
+    
+    return {
+        'iw_numerical': numerical_features_df_iw_new,
+        'iw_categorical': categorical_features_df_iw_new,
+        'ow_numerical': numerical_features_df_ow_new,
+        'ow_categorical': categorical_features_df_ow_new
+    }
