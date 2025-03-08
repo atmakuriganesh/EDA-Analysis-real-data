@@ -1,0 +1,51 @@
+def find_unique_columns(df_1W, df_OW):
+    """
+    Find columns that are unique to each dataframe and their union.
+    
+    Parameters:
+    df_1W (DataFrame): First dataframe
+    df_OW (DataFrame): Second dataframe
+    
+    Returns:
+    tuple: (unique_to_df_1W, unique_to_df_OW, all_unique_columns)
+    """
+    # Get column headings from both dataframes
+    columns_headings_df_1W = df_1W.columns.tolist()
+    columns_headings_df_OW = df_OW.columns.tolist()
+    
+    # Convert to sets for set operations
+    set1W = set(columns_headings_df_1W)
+    setOW = set(columns_headings_df_OW)
+    
+    # Find columns unique to each dataframe
+    only_in_1W = set1W - setOW
+    only_in_OW = setOW - set1W
+    
+    # Find union of unique columns
+    all_unique = only_in_1W.union(only_in_OW)
+    
+    return list(only_in_1W), list(only_in_OW), list(all_unique)
+
+
+def print_unique_columns_stats(df_1W, df_OW):
+    """
+    Print statistics about unique columns in the dataframes.
+    
+    Parameters:
+    df_1W (DataFrame): First dataframe
+    df_OW (DataFrame): Second dataframe
+    """
+    unique_to_1W, unique_to_OW, all_unique = find_unique_columns(df_1W, df_OW)
+    
+    print(len(unique_to_1W))
+    print("/n")
+    print(len(unique_to_OW))
+    print("/n")
+    print(len(all_unique))
+
+
+# For just getting the unique columns lists
+unique_to_1W, unique_to_OW, all_unique = find_unique_columns(df_1W, df_OW)
+
+# Or to recreate the original output
+print_unique_columns_stats(df_1W, df_OW)
