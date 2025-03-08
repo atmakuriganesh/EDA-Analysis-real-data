@@ -49,3 +49,56 @@ unique_to_1W, unique_to_OW, all_unique = find_unique_columns(df_1W, df_OW)
 
 # Or to recreate the original output
 print_unique_columns_stats(df_1W, df_OW)
+
+----------------------------------------------
+from IPython.display import display
+import pandas as pd
+
+def compare_dataframe_columns(df_IW, df_OW):
+    """
+    Compare column counts between two dataframes and return a DataFrame
+    showing comparison results.
+    
+    Parameters:
+    df_IW (DataFrame): First dataframe (IW)
+    df_OW (DataFrame): Second dataframe (OW)
+    
+    Returns:
+    DataFrame: Comparison results with columns for name, counts, and match status
+    """
+    # Get all unique column names from both datasets
+    all_columns = set(df_IW.columns).union(set(df_OW.columns))
+    
+    # Initialize results list
+    comparison_result = []
+    
+    # Compare counts for each column
+    for column in all_columns:
+        # Get count for each dataset, considering all rows
+        iw_count = df_IW[column].count() if column in df_IW else "NA"
+        ow_count = df_OW[column].count() if column in df_OW else "NA"
+        
+        # Compare counts
+        if iw_count == ow_count:
+            match = "Match"
+        else:
+            match = "No Match"
+            
+        # Append results
+        comparison_result.append([column, iw_count, ow_count, match])
+    
+    # Convert results into DataFrame
+    result_df = pd.DataFrame(comparison_result, columns=["Column Name", "IW Count", "OW Count", "Compare Result"])
+    
+    return result_df
+
+def display_comparison_results(df_IW, df_OW):
+    """
+    Compare dataframe columns and display the results.
+    
+    Parameters:
+    df_IW (DataFrame): First dataframe (IW)
+    df_OW (DataFrame): Second dataframe (OW)
+    """
+    result_df = compare_dataframe_columns(df_IW, df_OW)
+    display(result_df)
