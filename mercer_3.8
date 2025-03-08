@@ -1,65 +1,68 @@
-from IPython.display import display
+# Finding percentage of outliers for numerical features
+import seaborn as sns
+import matplotlib.pyplot as plt
 import pandas as pd
 
-def compare_dataframe_columns(df_IW, df_OW):
-    """
-    Compare column counts between two dataframes and return a DataFrame
-    showing comparison results along with match counts.
+def analyze_outliers(df, dataset_name="Dataset"):
+    sns.set(style='whitegrid')
     
-    Parameters:
-    df_IW (DataFrame): First dataframe (IW)
-    df_OW (DataFrame): Second dataframe (OW)
+    numerical_features = df.select_dtypes(include=['float64','int64']).columns
+    n_cols = 3
+    n_rows= (len(numerical_features)//n_cols)+(1 if len(numerical_features)%n_cols else 0)
+    plt.figure(figsize=(20,5*n_rows))
     
-    Returns:
-    tuple: (result_df, match_count, no_match_count) containing:
-        - DataFrame with comparison results
-        - Count of matching columns
-        - Count of non-matching columns
-    """
-    # Get all unique column names from both datasets
-    all_columns = set(df_IW.columns).union(set(df_OW.columns))
+    outlier_data = []
     
-    # Initialize results list
-    comparison_result = []
-    match_count = 0
-    no_match_count = 0
-    
-    # Compare counts for each column
-    for column in all_columns:
-        # Get count for each dataset, considering all rows
-        iw_count = df_IW[column].count() if column in df_IW else "NA"
-        ow_count = df_OW[column].count() if column in df_OW else "NA"
+    for i,col in enumerate(numerical_features,1):
+        Q1 = df[col].quantile(.25)
+        Q3 = df[col].quantile(.75)
+        IQR = Q3 - Q1
         
-        # Compare counts
-        if iw_count == ow_count:
-            match = "Match"
-            match_count += 1
-        else:
-            match = "No Match"
-            no_match_count += 1
-            
-        # Append results
-        comparison_result.append([column, iw_count, ow_count, match])
+        # Determine outliers
+        outliers_lower = (Q1 - 1.5 * IQR)
+        outliers_upper = (Q3 + 1.5 * IQR)
+        outliers = df[(df[col] < outliers_lower) | (df[col] > outliers_upper)]
+        outlier_count = len(outliers)
+        total_count = len(df[col])
+        outlier_percentage = (outlier_count/total_count)*100 if total_count >0 else 0
+        
+        outlier_data.append({
+            "Dataset" : dataset_name,
+            "column": col,
+            "Outlier_Flag": "Y" if outlier_count > 0 else "N",
+            "Outlier_Percentage": round(outlier_percentage, 2)
+        })
+        
+        plt.subplot(n_rows,n_cols,i)
+        sns.boxplot(x=df[col])
+        outlier_count=len(outliers)
+        plt.title(f'{dataset_name} - {col} \n Outliers:{outlier_count}')
+        plt.xticks(rotation=45)
     
-    # Convert results into DataFrame
-    result_df = pd.DataFrame(comparison_result, columns=["Column Name", "IW Count", "OW Count", "Compare Result"])
+    plt.tight_layout()
+    plt.show()
     
-    return result_df, match_count, no_match_count
+    outlier_df = pd.DataFrame(outlier_data)
+    
+    # Count columns with and without outliers
+    columns_with_outliers = sum(outlier_df["Outlier_Flag"] == "Y")
+    columns_without_outliers = sum(outlier_df["Outlier_Flag"] == "N")
+    
+    print(f"\n--- {dataset_name} Summary ---")
+    print(f"Total numerical columns: {len(numerical_features)}")
+    print(f"Columns with outliers: {columns_with_outliers}")
+    print(f"Columns without outliers: {columns_without_outliers}")
+    
+    return outlier_df
 
-def display_comparison_results(df_IW, df_OW):
-    """
-    Compare dataframe columns, display the results, and print match/no match counts.
-    
-    Parameters:
-    df_IW (DataFrame): First dataframe (IW)
-    df_OW (DataFrame): Second dataframe (OW)
-    """
-    result_df, match_count, no_match_count = compare_dataframe_columns(df_IW, df_OW)
-    display(result_df)
-    
-    print(f"Match count: {match_count}")
-    print(f"No Match count: {no_match_count}")
-    print(f"Total columns compared: {match_count + no_match_count}")
+outlier_df_IW = analyze_outliers(df_IW, dataset_name="IW")
+outlier_df_OW = analyze_outliers(df_OW, dataset_name="OW")
 
-# Call the function with your dataframes
-display_comparison_results(df_IW, df_OW)
+# Print the detailed outlier information
+print(outlier_df_IW)
+print(outlier_df_OW)
+
+# Compare both datasets
+print("\n--- Comparison Summary ---")
+print(f"IW: {sum(outlier_df_IW['Outlier_Flag'] == 'Y')}/{len(outlier_df_IW)} columns have outliers")
+print(f"OW: {sum(outlier_df_OW['Outlier_Flag'] == 'Y')}/{len(outlier_df_OW)} columns have outliers")
