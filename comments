@@ -6,3 +6,4 @@
 # Consider analyzing pattern deviations in quartile values rather than treating them as traditional outliers
 
 # The visualization (boxplot) shows salary distribution by family/department with good variation - some departments have higher median salaries and wider ranges than others 
+The extremely high chi-square statistics (200399.00 for Family vs PositionTitle and Family vs Sub-Family; 1054273.00 for PositionTitle vs Sub-Family) suggest not just statistical significance but extremely strong associations between these organizational variables.
