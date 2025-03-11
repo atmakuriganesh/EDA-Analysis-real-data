@@ -1,26 +1,84 @@
 import pandas as pd
+import datetime
 
-# Define the keys from your dataframes_1 dictionary
-keys = [
-    "RETRO PAYP033 SEIU Local 20 CCHHS Stroger Doctors Gr. KP1-4, DP4.xlsx_KP3_2023",
-    "RETRO PAYP033 SEIU Local 20 CCHHS Stroger Doctors Gr. KP1-4, DP4.xlsx_KP4_2023",
-    "RETRO PAYP033 SEIU Local 20 CCHHS Stroger Doctors Gr. KP1-4, DP4.xlsx_KP2_2023",
-    "RETRO PAYP033 SEIU Local 20 CCHHS Stroger Doctors Gr. KP1-4, DP4.xlsx_KP1_2023",
-    "RETRO PAYP033 SEIU Local 20 CCHHS Stroger Doctors Gr. KP1-4, DP4.xlsx_DP4_2023",
-    "RETRO PAYP033 SEIU Local 20 Stroger Doctors Gr. DP1-DP3.xlsx_DP1-DP3_2023"
-]
-
-# Create an empty list to store all dataframes
-all_dfs = []
-
-# Loop through each key and append the corresponding dataframe to the list
-for key in keys:
-    # Assuming dataframes_1 is a dictionary containing your dataframes
-    # Add the corresponding dataframe to our list
-    all_dfs.append(dataframes_1[key])
+def extract_pdm_data(file_path):
+    # Read the Excel file
+    df_raw = pd.read_excel(file_path, header=None)
     
-    # Print information about the dataframe being added (optional)
-    print(f"Adding {key}: {len(dataframes_1[key])} rows, {dataframes_1[key].columns.tolist()} columns")
+    # Find the title of the Excel file (assuming it's in cell C1 or similar)
+    title = None
+    for row_idx in range(5):  # Check first few rows
+        for col_idx in range(5):  # Check first few columns
+            cell_value = str(df_raw.iloc[row_idx, col_idx])
+            if "PDM Interpreters" in cell_value:
+                title = cell_value
+                break
+    
+    # If title not found, use filename
+    if not title:
+        title = file_path.split('/')[-1].replace('.xlsx', '').replace('.xls', '')
+    
+    # Find PDM and PDM2 sections
+    data = []
+    current_grade = None
+    date_col = None
+    hourly_col = None
+    
+    # Find the PDM/PDM2 headers and corresponding date and hourly columns
+    for row_idx in range(df_raw.shape[0]):
+        row = df_raw.iloc[row_idx]
+        
+        # Check if row contains PDM or PDM2
+        for col_idx in range(df_raw.shape[1]):
+            cell_value = str(row[col_idx]).strip().upper()
+            
+            if cell_value == 'PDM' or cell_value == 'PDM2':
+                current_grade = cell_value
+                
+                # Find the Hourly column
+                for h_col in range(col_idx, df_raw.shape[1]):
+                    if str(row[h_col]).strip().upper() == 'HOURLY':
+                        hourly_col = h_col
+                        date_col = col_idx  # Assuming dates are in the same column as the grade
+                        break
+            
+        # If we have identified grade and columns, look for target dates
+        if current_grade and date_col is not None and hourly_col is not None:
+            cell_value = str(row[date_col]).strip()
+            
+            # Check for date format 6/1/2023 or 12/1/2023
+            target_dates = ['6/1/2023', '12/1/2023', '6/1/23', '12/1/23']
+            
+            # Try to parse as date if not direct string match
+            found_date = False
+            if any(date_str in cell_value for date_str in target_dates):
+                found_date = True
+            else:
+                try:
+                    date_obj = pd.to_datetime(cell_value, errors='raise')
+                    if date_obj.month in [6, 12] and date_obj.day == 1 and date_obj.year == 2023:
+                        found_date = True
+                except:
+                    pass
+            
+            if found_date:
+                try:
+                    hourly_value = float(str(row[hourly_col]).replace(',', ''))
+                    annual_rate = hourly_value * 2080
+                    
+                    data.append({
+                        'grade': current_grade,
+                        'term': 'annual',
+                        'end_rate': round(annual_rate, 2),
+                        'category': title
+                    })
+                except ValueError:
+                    continue  # Skip if hourly value can't be converted to float
+    
+    return pd.DataFrame(data)
 
-# Merge all dataframes into a single dataframe
-merged_df = pd.concat(all_dfs, ignore_index=True)
+# Example usage
+if __name__ == "__main__":
+    file_path = "path_to_your_excel_file.xlsx"  # Replace with actual file path
+    result_df = extract_pdm_data(file_path)
+    print(result_df)
