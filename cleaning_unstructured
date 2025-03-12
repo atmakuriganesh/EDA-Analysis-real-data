@@ -4,7 +4,7 @@ from datetime import datetime
 
 def extract_rg_data(df_input, category_name="RG Pay Structure", target_year=2023):
     """
-    Extract RG data from a DataFrame with debug output.
+    Extract RG data from a DataFrame, handling MM/DD/YYYY date format.
     
     Parameters:
     df_input (pandas.DataFrame): Input DataFrame
@@ -19,29 +19,21 @@ def extract_rg_data(df_input, category_name="RG Pay Structure", target_year=2023
     if df_raw.columns.dtype != 'int64':
         df_raw = pd.DataFrame(df_raw.values)
     
-    # Add debugging
     print(f"DataFrame shape: {df_raw.shape}")
-    
-    # Print first few rows to see structure
-    print("First 5 rows of input DataFrame:")
-    for i in range(min(5, df_raw.shape[0])):
-        row_values = []
-        for j in range(min(5, df_raw.shape[1])):
-            if j < df_raw.shape[1]:
-                row_values.append(str(df_raw.iloc[i, j]))
-        print(f"Row {i}: {row_values}")
+    print("Looking for year:", target_year)
     
     data = []
-    date_pattern = re.compile(r'(\d{1,2}[-./]\d{1,2}[-./]\d{2,4})')
-    
-    # Track which rows we're processing
-    date_rows_found = 0
-    grade_matches_found = 0
+    # Standard date pattern looking for formats like 6/1/2023
+    date_pattern = re.compile(r'(\d{1,2}/\d{1,2}/\d{4})')
     
     # Scan through the dataframe
     for i in range(df_raw.shape[0]):
         if df_raw.shape[1] > 0:
-            date_cell = str(df_raw.iloc[i, 0])
+            # Get the value in the first column
+            date_cell = str(df_raw.iloc[i, 0]).strip()
+            print(f"Row {i}, Col 0: '{date_cell}'")
+            
+            # Try to match the date pattern
             date_match = date_pattern.search(date_cell)
             
             if date_match:
@@ -49,68 +41,74 @@ def extract_rg_data(df_input, category_name="RG Pay Structure", target_year=2023
                 print(f"Found date: {date_str} in row {i}")
                 
                 try:
-                    # Try different date formats
-                    date_obj = None
-                    for date_format in ['%m/%d/%Y', '%m-%d-%Y', '%m.%d.%Y', '%m/%d/%y', '%m-%d-%y', '%m.%d.%y']:
-                        try:
-                            date_obj = datetime.strptime(date_str, date_format)
-                            print(f"  Parsed as: {date_obj} using format {date_format}")
-                            break
-                        except:
-                            continue
-                    
-                    # If no format worked, use pandas
-                    if date_obj is None:
+                    # Parse the date explicitly as MM/DD/YYYY
+                    try:
+                        date_parts = date_str.split('/')
+                        month = int(date_parts[0])
+                        day = int(date_parts[1])
+                        year = int(date_parts[2])
+                        print(f"  Parsed: month={month}, day={day}, year={year}")
+                    except:
+                        # If direct parsing fails, try pandas
                         date_obj = pd.to_datetime(date_str)
-                        print(f"  Parsed with pandas as: {date_obj}")
+                        year = date_obj.year
+                        print(f"  Parsed with pandas: year={year}")
                     
-                    # Print what we found
-                    print(f"  Year: {date_obj.year}, Target: {target_year}")
-                    
-                    # Only process rows with the target year
-                    if date_obj.year == target_year:
-                        date_rows_found += 1
+                    # Check if this is the target year
+                    if year == target_year:
                         print(f"  ✓ MATCH: Found target year {target_year}")
                         
-                        # Check current row and next row for RG1/RG2
+                        # Look for RG1/RG2 in current row and next row
                         for j in range(2):
-                            if i+j < df_raw.shape[0] and df_raw.shape[1] > 3:
-                                grade_cell = str(df_raw.iloc[i+j, 1]).strip()
-                                print(f"  Checking grade in row {i+j}: '{grade_cell}'")
+                            row_idx = i+j
+                            if row_idx < df_raw.shape[0]:
+                                # Check column 1 for grade
+                                grade_cell = str(df_raw.iloc[row_idx, 1]).strip()
+                                print(f"  Checking grade in row {row_idx}: '{grade_cell}'")
                                 
                                 if grade_cell in ['RG1', 'RG2']:
-                                    grade_matches_found += 1
                                     print(f"    ✓ MATCH: Found grade {grade_cell}")
                                     
-                                    # Get hourly rate
-                                    hourly_str = str(df_raw.iloc[i+j, 3])
-                                    print(f"    Hourly value: {hourly_str}")
+                                    # Find hourly rate - should be in column 3 or 4
+                                    hourly_col = None
+                                    for col_idx in range(2, min(5, df_raw.shape[1])):
+                                        col_header = str(df_raw.iloc[row_idx, col_idx-1]).strip()
+                                        if col_header.lower() == 'hourly':
+                                            hourly_col = col_idx
+                                            break
                                     
-                                    try:
-                                        # Remove any $ and convert to float
-                                        hourly_rate = float(hourly_str.replace('$', '').replace(',', ''))
-                                        annual_rate = hourly_rate * 2080
+                                    # If we couldn't find the hourly column header, default to column 3
+                                    if hourly_col is None:
+                                        hourly_col = 3
+                                    
+                                    if hourly_col < df_raw.shape[1]:
+                                        hourly_str = str(df_raw.iloc[row_idx, hourly_col])
+                                        print(f"    Hourly value from column {hourly_col}: '{hourly_str}'")
                                         
-                                        print(f"    Calculated annual rate: {annual_rate}")
-                                        
-                                        data.append({
-                                            'grade': grade_cell,
-                                            'term': 'annual',
-                                            'end_rate': round(annual_rate, 2),
-                                            'category': category_name
-                                        })
-                                    except ValueError as e:
-                                        print(f"    ✗ ERROR: Could not convert hourly rate: {e}")
+                                        try:
+                                            # Clean and convert to float
+                                            hourly_str = hourly_str.replace('$', '').replace(',', '')
+                                            hourly_rate = float(hourly_str)
+                                            annual_rate = hourly_rate * 2080
+                                            
+                                            print(f"    Calculated annual rate: {annual_rate}")
+                                            
+                                            data.append({
+                                                'grade': grade_cell,
+                                                'term': 'annual',
+                                                'end_rate': round(annual_rate, 2),
+                                                'category': category_name
+                                            })
+                                        except ValueError as e:
+                                            print(f"    ✗ ERROR: Could not convert hourly rate: {e}")
                 except Exception as e:
-                    print(f"  ✗ ERROR: Date parsing failed: {e}")
+                    print(f"  ✗ ERROR processing row {i}: {e}")
     
     print(f"\nSummary:")
-    print(f"- Rows with target year {target_year}: {date_rows_found}")
-    print(f"- Grade matches found: {grade_matches_found}")
     print(f"- Total records extracted: {len(data)}")
     
     result_df = pd.DataFrame(data)
     return result_df
 
 # Example usage:
-# df_result = extract_rg_data(dataframes_1['RETRO PAYP002 NNOC In-House Registry - Gr. RG1,RG2.xls_6.1.2021-6.1.2025'])
+# df_result = extract_rg_data(df['as'], "IN-HOUSE REGISTRY NURSES AND SPECIALTY CARE")
