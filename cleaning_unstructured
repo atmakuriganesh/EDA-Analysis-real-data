@@ -1,84 +1,179 @@
 import pandas as pd
-import datetime
+import re
+from datetime import datetime
 
-def extract_pdm_data(file_path):
-    # Read the Excel file
-    df_raw = pd.read_excel(file_path, header=None)
+def extract_pay_data(df_input, category_name, target_year=2023):
+    """
+    Extract pay data from a DataFrame with different table formats.
+    Works for both PDM/PDM2 and RG1/RG2 table formats.
     
-    # Find the title of the Excel file (assuming it's in cell C1 or similar)
-    title = None
-    for row_idx in range(5):  # Check first few rows
-        for col_idx in range(5):  # Check first few columns
-            cell_value = str(df_raw.iloc[row_idx, col_idx])
-            if "PDM Interpreters" in cell_value:
-                title = cell_value
-                break
+    Parameters:
+    df_input (pandas.DataFrame): Input DataFrame
+    category_name (str): Name to use for the category column
+    target_year (int): Year to filter data for (default: 2023)
     
-    # If title not found, use filename
-    if not title:
-        title = file_path.split('/')[-1].replace('.xlsx', '').replace('.xls', '')
+    Returns:
+    pandas.DataFrame: DataFrame with grade, term, end_rate and category columns
+    """
+    # Reset index to ensure we have consistent row numbering
+    df_raw = df_input.reset_index(drop=True)
     
-    # Find PDM and PDM2 sections
+    # Convert DataFrame to have no headers for consistent processing
+    if df_raw.columns.dtype != 'int64':
+        # If it has named headers, convert to a headerless DataFrame
+        df_raw = pd.DataFrame(df_raw.values)
+    
+    # Initialize results list
+    data = []
+    
+    # Try both extraction methods
+    data.extend(extract_pdm_format(df_raw, category_name, target_year))
+    data.extend(extract_rg_format(df_raw, category_name, target_year))
+    
+    # Create DataFrame and remove rows with NaN end_rates
+    result_df = pd.DataFrame(data)
+    result_df = result_df.dropna(subset=['end_rate'])
+    
+    return result_df
+
+def extract_pdm_format(df, category_name, target_year):
+    """Extract data from PDM format tables"""
     data = []
     current_grade = None
-    date_col = None
     hourly_col = None
     
-    # Find the PDM/PDM2 headers and corresponding date and hourly columns
-    for row_idx in range(df_raw.shape[0]):
-        row = df_raw.iloc[row_idx]
-        
-        # Check if row contains PDM or PDM2
-        for col_idx in range(df_raw.shape[1]):
-            cell_value = str(row[col_idx]).strip().upper()
-            
-            if cell_value == 'PDM' or cell_value == 'PDM2':
-                current_grade = cell_value
-                
-                # Find the Hourly column
-                for h_col in range(col_idx, df_raw.shape[1]):
-                    if str(row[h_col]).strip().upper() == 'HOURLY':
-                        hourly_col = h_col
-                        date_col = col_idx  # Assuming dates are in the same column as the grade
-                        break
-            
-        # If we have identified grade and columns, look for target dates
-        if current_grade and date_col is not None and hourly_col is not None:
-            cell_value = str(row[date_col]).strip()
-            
-            # Check for date format 6/1/2023 or 12/1/2023
-            target_dates = ['6/1/2023', '12/1/2023', '6/1/23', '12/1/23']
-            
-            # Try to parse as date if not direct string match
-            found_date = False
-            if any(date_str in cell_value for date_str in target_dates):
-                found_date = True
-            else:
-                try:
-                    date_obj = pd.to_datetime(cell_value, errors='raise')
-                    if date_obj.month in [6, 12] and date_obj.day == 1 and date_obj.year == 2023:
-                        found_date = True
-                except:
-                    pass
-            
-            if found_date:
-                try:
-                    hourly_value = float(str(row[hourly_col]).replace(',', ''))
-                    annual_rate = hourly_value * 2080
-                    
-                    data.append({
-                        'grade': current_grade,
-                        'term': 'annual',
-                        'end_rate': round(annual_rate, 2),
-                        'category': title
-                    })
-                except ValueError:
-                    continue  # Skip if hourly value can't be converted to float
+    # Pattern to match target dates
+    date_pattern = re.compile(r'(\d{1,2}[-/]\d{1,2}[-/](?:\d{4}|\d{2}))')
     
-    return pd.DataFrame(data)
+    # Loop through rows
+    for i in range(df.shape[0]):
+        # Check for PDM or PDM2 header
+        for j in range(min(5, df.shape[1])):
+            if j < df.shape[1]:
+                cell_value = str(df.iloc[i, j]).strip().upper()
+                
+                if cell_value == 'PDM' or cell_value == 'PDM2':
+                    current_grade = cell_value
+                    
+                    # Find hourly column
+                    for k in range(j, min(j+5, df.shape[1])):
+                        if k < df.shape[1] and 'HOURLY' in str(df.iloc[i, k]).strip().upper():
+                            hourly_col = k
+                            break
+        
+        # Look for date in first few columns
+        found_date = False
+        date_value = None
+        
+        for j in range(min(3, df.shape[1])):
+            if j < df.shape[1]:
+                cell_value = str(df.iloc[i, j])
+                match = date_pattern.search(cell_value)
+                
+                if match:
+                    date_str = match.group(1)
+                    try:
+                        # Parse date and check year
+                        date_obj = pd.to_datetime(date_str)
+                        if date_obj.year == target_year:
+                            found_date = True
+                            date_value = date_str
+                            break
+                    except:
+                        # Try other date formats
+                        try:
+                            # Try with 2-digit year
+                            if len(date_str) <= 8:  # Likely has 2-digit year
+                                date_obj = pd.to_datetime(date_str, format='%m/%d/%y')
+                                if date_obj.year == target_year:
+                                    found_date = True
+                                    date_value = date_str
+                                    break
+                        except:
+                            pass
+        
+        # If target date found and we have a current grade and hourly column
+        if found_date and current_grade and hourly_col is not None and hourly_col < df.shape[1]:
+            try:
+                hourly_value = str(df.iloc[i, hourly_col])
+                # Remove $ and commas, convert to float
+                hourly_value = float(hourly_value.replace('$', '').replace(',', ''))
+                
+                data.append({
+                    'grade': current_grade,
+                    'term': 'annual',
+                    'end_rate': round(hourly_value * 2080, 2),
+                    'category': category_name
+                })
+            except:
+                # Skip if can't parse hourly value
+                pass
+    
+    return data
+
+def extract_rg_format(df, category_name, target_year):
+    """Extract data from RG format tables"""
+    data = []
+    date_pattern = re.compile(r'(\d{1,2}/\d{1,2}/\d{2,4})')
+    
+    # Loop through rows
+    for i in range(df.shape[0]):
+        # Check first column for dates
+        if df.shape[1] > 0:
+            date_cell = str(df.iloc[i, 0])
+            date_match = date_pattern.search(date_cell)
+            
+            if date_match:
+                date_str = date_match.group(1)
+                try:
+                    # Parse date and check year
+                    date_obj = pd.to_datetime(date_str)
+                    
+                    if date_obj.year == target_year:
+                        # Look for RG1/RG2 in current and next row
+                        for j in range(2):
+                            if i+j < df.shape[0] and df.shape[1] > 3:
+                                # Check if grade cell contains RG1 or RG2
+                                grade_cell = str(df.iloc[i+j, 1]).strip()
+                                
+                                if grade_cell in ['RG1', 'RG2']:
+                                    # Extract hourly rate from column 3
+                                    hourly_str = str(df.iloc[i+j, 3])
+                                    
+                                    try:
+                                        # Remove $ and commas, convert to float
+                                        hourly_rate = float(hourly_str.replace('$', '').replace(',', ''))
+                                        
+                                        data.append({
+                                            'grade': grade_cell,
+                                            'term': 'annual',
+                                            'end_rate': round(hourly_rate * 2080, 2),
+                                            'category': category_name
+                                        })
+                                    except:
+                                        # Skip if can't parse hourly rate
+                                        pass
+                except:
+                    # Skip if can't parse date
+                    pass
+    
+    return data
 
 # Example usage
-if __name__ == "__main__":
-    file_path = "path_to_your_excel_file.xlsx"  # Replace with actual file path
-    result_df = extract_pdm_data(file_path)
-    print(result_df)
+def process_pay_dataframe(df, category_name):
+    """
+    Process a pay dataframe and extract the required data.
+    
+    Parameters:
+    df (pandas.DataFrame): The input dataframe
+    category_name (str): The name to use for the category column
+    
+    Returns:
+    pandas.DataFrame: The processed dataframe with required columns
+    """
+    result_df = extract_pay_data(df, category_name)
+    return result_df
+
+# Usage example:
+# Input dataframe would be accessed like df['aaf']
+# result = process_pay_dataframe(df['aaf'], "Your Category Name")
