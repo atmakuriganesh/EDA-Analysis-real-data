@@ -1,4 +1,5 @@
 import pandas as pd
+import re
 
 def extract_rxg_data(df_input, category_name=None):
     """
@@ -16,79 +17,87 @@ def extract_rxg_data(df_input, category_name=None):
     
     # If no category name provided, try to extract it from the data
     if not category_name:
-        for i in range(min(5, df_raw.shape[0])):
+        for i in range(min(15, df_raw.shape[0])):
             for j in range(min(5, df_raw.shape[1])):
                 if i < df_raw.shape[0] and j < df_raw.shape[1]:
                     cell_value = str(df_raw.iloc[i, j])
-                    if "STEP" in cell_value.upper():
-                        category_name = "RXG Pay Structure"
+                    if "1ST STEP" in cell_value:
+                        category_name = "1ST STEP"
                         break
         # Default if not found
         if not category_name:
             category_name = "RXG Pay Structure"
     
-    data = []
-    target_dates = ['6/1/2023', '6/1/23']
-    found_date_row = None
+    print(f"Using category: {category_name}")
+    print(f"DataFrame shape: {df_raw.shape}")
     
-    # First, find the row with the target date
+    data = []
+    
+    # Track the current date being processed
+    current_date = None
+    current_grade = None
+    
+    # Process all rows
     for i in range(df_raw.shape[0]):
         if df_raw.shape[1] <= 1:
             continue
+        
+        # Get values from first two columns
+        col0 = str(df_raw.iloc[i, 0]).strip() if df_raw.shape[1] > 0 else ""
+        col1 = str(df_raw.iloc[i, 1]).strip() if df_raw.shape[1] > 1 else ""
+        
+        # Debug print
+        print(f"Row {i}: Col0='{col0}', Col1='{col1}'")
+        
+        # If col0 contains "RXG", it's a grade row
+        if "RXG" in col0:
+            current_grade = col0
             
-        for j in range(2):  # Check first two columns
-            if j < df_raw.shape[1]:
-                date_cell = str(df_raw.iloc[i, j]).strip()
+            # Look for a date pattern in col1
+            date_pattern = re.compile(r'(\d{1,2}/\d{1,2}/\d{4}|\d{1,2}/\d{1,2}/\d{2})')
+            date_match = date_pattern.search(col1)
+            
+            if date_match:
+                date_str = date_match.group(1)
+                print(f"Found date: {date_str}")
                 
-                # Check if this cell contains a target date
-                if any(date_str in date_cell for date_str in target_dates):
-                    found_date_row = i
-                    break
-                else:
-                    try:
-                        date_obj = pd.to_datetime(date_cell, errors='raise')
-                        if date_obj.month == 6 and date_obj.day == 1 and date_obj.year == 2023:
-                            found_date_row = i
-                            break
-                    except:
-                        pass
+                try:
+                    date_obj = pd.to_datetime(date_str)
+                    # If this is a 2023 date, track it
+                    if date_obj.year == 2023 and date_obj.month == 6 and date_obj.day == 1:
+                        current_date = date_str
+                        print(f"Found target date: {current_date}")
+                except Exception as e:
+                    print(f"Error parsing date: {e}")
         
-        if found_date_row is not None:
-            break
-    
-    # If we found a date row, look for Annual in the next few rows
-    if found_date_row is not None:
-        grade = None
-        
-        # Get the grade (RXG) from the first column
-        if df_raw.shape[1] > 0:
-            grade = str(df_raw.iloc[found_date_row, 0]).strip()
-        
-        # Look for "Annual" in column 1 within the next 3 rows
-        for i in range(found_date_row, min(found_date_row + 3, df_raw.shape[0])):
-            if df_raw.shape[1] > 1:
-                term_cell = str(df_raw.iloc[i, 1]).strip()
+        # If we have a current 2023 date and this row contains "Annual"
+        if current_date and "annual" in col1.lower():
+            print(f"Found Annual row for date {current_date}")
+            
+            # Get the annual salary from column 2
+            if df_raw.shape[1] > 2:
+                annual_str = str(df_raw.iloc[i, 2]).strip()
+                print(f"Annual value: {annual_str}")
                 
-                if term_cell.lower() == 'annual':
-                    # Get the annual rate from column 2
-                    if df_raw.shape[1] > 2:
-                        annual_str = str(df_raw.iloc[i, 2])
-                        
-                        try:
-                            # Clean and convert to float
-                            annual_str = annual_str.replace('$', '').replace(',', '')
-                            annual_rate = float(annual_str)
-                            
-                            data.append({
-                                'grade': grade,
-                                'term': 'annual',
-                                'end_rate': round(annual_rate, 2),
-                                'category': category_name
-                            })
-                            break  # We found what we needed
-                        except ValueError:
-                            pass  # Skip if can't convert
+                try:
+                    # Clean and convert to float
+                    annual_str = annual_str.replace('$', '').replace(',', '')
+                    annual_rate = float(annual_str)
+                    
+                    data.append({
+                        'grade': current_grade,
+                        'term': 'annual',
+                        'end_rate': round(annual_rate, 2),
+                        'category': category_name
+                    })
+                    print(f"Added record: {current_grade}, annual, {annual_rate}, {category_name}")
+                    
+                    # Reset current_date after processing to avoid duplicates
+                    current_date = None
+                except ValueError as e:
+                    print(f"Error converting annual rate: {e}")
     
+    print(f"\nTotal records found: {len(data)}")
     result_df = pd.DataFrame(data)
     
     # Drop any rows with NaN end_rates
@@ -98,4 +107,4 @@ def extract_rxg_data(df_input, category_name=None):
     return result_df
 
 # Example usage:
-# df_result = extract_rxg_data(df['as'], "RXG Pay Structure")
+# df_result = extract_rxg_data(df['6.1.2021-25'], "1ST STEP")
