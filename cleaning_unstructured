@@ -1,32 +1,48 @@
 import pandas as pd
+import numpy as np
 
-def extract_2023_data(df, category_name="category_name"):
+def merge_all_dataframes(dfs_list):
     """
-    Extracts rows containing '2023' and filters only 'Annual' term data.
+    Merge multiple dataframes into one, preserving all columns across dataframes.
+    If a dataframe is missing a column that exists in other dataframes, it will be filled with NaN.
     
     Parameters:
-        df (pd.DataFrame): The input DataFrame.
-        category_name (str): The category name to assign in the 'afaf' column.
+    -----------
+    dfs_list : list
+        List of pandas DataFrames to merge
     
     Returns:
-        pd.DataFrame: A filtered DataFrame with columns ['grade', 'Term', 'end_rate', 'afaf'].
+    --------
+    pandas.DataFrame
+        A merged dataframe containing all rows and columns from input dataframes
     """
-    # Filter rows that contain '2023' in any column
-    df_2023 = df[df.apply(lambda row: row.astype(str).str.contains('2023', case=False, na=False)).any(axis=1)]
+    # Check if the input list is empty
+    if not dfs_list:
+        return pd.DataFrame()
     
-    # Select only rows where Term is 'Annual'
-    df_2023 = df_2023[df_2023.iloc[:, 1].str.contains("Annual", case=False, na=False)]  # Adjust column index if needed
+    # Get the list of all unique columns across all dataframes
+    all_columns = set()
+    for df in dfs_list:
+        all_columns.update(df.columns)
     
-    # Extract relevant columns (assuming they are in positions 0, 1, and 2)
-    df_2023 = df_2023.iloc[:, [0, 1, 2]]
-    df_2023.columns = ['grade', 'Term', 'end_rate']
-
-    # Add category column
-    df_2023['afaf'] = category_name  
-
-    return df_2023
+    # Create a list to store the standardized dataframes
+    standardized_dfs = []
+    
+    # Standardize each dataframe to include all columns
+    for df in dfs_list:
+        # Create a dict of missing columns with NaN values
+        missing_cols = all_columns - set(df.columns)
+        # Create a new dataframe with the missing columns filled with NaN
+        if missing_cols:
+            for col in missing_cols:
+                df[col] = np.nan
+        # Ensure all dataframes have the same column order
+        standardized_dfs.append(df[sorted(all_columns)])
+    
+    # Concatenate all standardized dataframes
+    merged_df = pd.concat(standardized_dfs, ignore_index=True)
+    
+    return merged_df
 
 # Example usage:
-# df is your already loaded DataFrame
-filtered_df = extract_2023_data(df, category_name="Pharmacy Group")
-print(filtered_df)
+# merged_result = merge_all_dataframes([merged_df, result_df, result_df1, result_df2])
