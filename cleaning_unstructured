@@ -4,7 +4,7 @@ from datetime import datetime
 
 def extract_rg_data(df_input, category_name="RG Pay Structure", target_year=2023):
     """
-    Extract RG data from a DataFrame.
+    Extract RG data from a DataFrame with debug output.
     
     Parameters:
     df_input (pandas.DataFrame): Input DataFrame
@@ -14,46 +14,84 @@ def extract_rg_data(df_input, category_name="RG Pay Structure", target_year=2023
     Returns:
     pandas.DataFrame: DataFrame with grade, term, end_rate and category columns
     """
-    # Reset index to ensure we have consistent row numbering
+    # Reset index and ensure consistent format
     df_raw = df_input.reset_index(drop=True)
-    
-    # Convert DataFrame to have no headers for consistent processing
     if df_raw.columns.dtype != 'int64':
-        # If it has named headers, convert to a headerless DataFrame
         df_raw = pd.DataFrame(df_raw.values)
     
-    data = []
-    date_pattern = re.compile(r'(\d{1,2}/\d{1,2}/\d{2,4})')
+    # Add debugging
+    print(f"DataFrame shape: {df_raw.shape}")
     
-    # Scan through the dataframe to find dates and corresponding RG1/RG2 rows
+    # Print first few rows to see structure
+    print("First 5 rows of input DataFrame:")
+    for i in range(min(5, df_raw.shape[0])):
+        row_values = []
+        for j in range(min(5, df_raw.shape[1])):
+            if j < df_raw.shape[1]:
+                row_values.append(str(df_raw.iloc[i, j]))
+        print(f"Row {i}: {row_values}")
+    
+    data = []
+    date_pattern = re.compile(r'(\d{1,2}[-./]\d{1,2}[-./]\d{2,4})')
+    
+    # Track which rows we're processing
+    date_rows_found = 0
+    grade_matches_found = 0
+    
+    # Scan through the dataframe
     for i in range(df_raw.shape[0]):
-        if df_raw.shape[1] > 0:  # Ensure there's at least one column
+        if df_raw.shape[1] > 0:
             date_cell = str(df_raw.iloc[i, 0])
             date_match = date_pattern.search(date_cell)
             
             if date_match:
                 date_str = date_match.group(1)
+                print(f"Found date: {date_str} in row {i}")
+                
                 try:
-                    # Parse the date to check if it's from target year
-                    date_obj = pd.to_datetime(date_str)
+                    # Try different date formats
+                    date_obj = None
+                    for date_format in ['%m/%d/%Y', '%m-%d-%Y', '%m.%d.%Y', '%m/%d/%y', '%m-%d-%y', '%m.%d.%y']:
+                        try:
+                            date_obj = datetime.strptime(date_str, date_format)
+                            print(f"  Parsed as: {date_obj} using format {date_format}")
+                            break
+                        except:
+                            continue
                     
-                    # Only process rows with the target year (default 2023)
+                    # If no format worked, use pandas
+                    if date_obj is None:
+                        date_obj = pd.to_datetime(date_str)
+                        print(f"  Parsed with pandas as: {date_obj}")
+                    
+                    # Print what we found
+                    print(f"  Year: {date_obj.year}, Target: {target_year}")
+                    
+                    # Only process rows with the target year
                     if date_obj.year == target_year:
-                        # Look for RG1 and RG2 in this row and subsequent row
-                        for j in range(2):  # Check current row and next row
+                        date_rows_found += 1
+                        print(f"  ✓ MATCH: Found target year {target_year}")
+                        
+                        # Check current row and next row for RG1/RG2
+                        for j in range(2):
                             if i+j < df_raw.shape[0] and df_raw.shape[1] > 3:
                                 grade_cell = str(df_raw.iloc[i+j, 1]).strip()
+                                print(f"  Checking grade in row {i+j}: '{grade_cell}'")
                                 
                                 if grade_cell in ['RG1', 'RG2']:
-                                    # Get hourly rate from the hourly column (assumed to be column 3)
+                                    grade_matches_found += 1
+                                    print(f"    ✓ MATCH: Found grade {grade_cell}")
+                                    
+                                    # Get hourly rate
                                     hourly_str = str(df_raw.iloc[i+j, 3])
+                                    print(f"    Hourly value: {hourly_str}")
                                     
                                     try:
                                         # Remove any $ and convert to float
                                         hourly_rate = float(hourly_str.replace('$', '').replace(',', ''))
-                                        
-                                        # Calculate annual rate
                                         annual_rate = hourly_rate * 2080
+                                        
+                                        print(f"    Calculated annual rate: {annual_rate}")
                                         
                                         data.append({
                                             'grade': grade_cell,
@@ -61,19 +99,18 @@ def extract_rg_data(df_input, category_name="RG Pay Structure", target_year=2023
                                             'end_rate': round(annual_rate, 2),
                                             'category': category_name
                                         })
-                                    except ValueError:
-                                        # Skip if hourly rate can't be converted to float
-                                        continue
-                except:
-                    # If date parsing fails, continue to next row
-                    continue
+                                    except ValueError as e:
+                                        print(f"    ✗ ERROR: Could not convert hourly rate: {e}")
+                except Exception as e:
+                    print(f"  ✗ ERROR: Date parsing failed: {e}")
+    
+    print(f"\nSummary:")
+    print(f"- Rows with target year {target_year}: {date_rows_found}")
+    print(f"- Grade matches found: {grade_matches_found}")
+    print(f"- Total records extracted: {len(data)}")
     
     result_df = pd.DataFrame(data)
-    # Drop any rows with NaN end_rates
-    result_df = result_df.dropna(subset=['end_rate'])
-    
     return result_df
 
-# Example usage
-# Instead of file_path, you would use:
-# df_result = extract_rg_data(df['as'], "Chicago Newspaper Guild")
+# Example usage:
+# df_result = extract_rg_data(dataframes_1['RETRO PAYP002 NNOC In-House Registry - Gr. RG1,RG2.xls_6.1.2021-6.1.2025'])
