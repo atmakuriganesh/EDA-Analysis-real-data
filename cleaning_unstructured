@@ -3,7 +3,7 @@ import re
 
 def extract_rxg_data(df_input, category_name=None):
     """
-    Extract RXG data from a DataFrame, using the Annual row for the end_rate.
+    Extract RXG data from a DataFrame focusing only on 6/1/2023 date format.
     
     Parameters:
     df_input (pandas.DataFrame): Input DataFrame
@@ -15,87 +15,81 @@ def extract_rxg_data(df_input, category_name=None):
     # Reset index and ensure consistent format
     df_raw = df_input.reset_index(drop=True)
     
-    # If no category name provided, try to extract it from the data
+    # If no category name provided, use default
     if not category_name:
-        for i in range(min(15, df_raw.shape[0])):
-            for j in range(min(5, df_raw.shape[1])):
-                if i < df_raw.shape[0] and j < df_raw.shape[1]:
-                    cell_value = str(df_raw.iloc[i, j])
-                    if "1ST STEP" in cell_value:
-                        category_name = "1ST STEP"
-                        break
-        # Default if not found
-        if not category_name:
-            category_name = "RXG Pay Structure"
+        category_name = "RXG Pay Structure"
     
     print(f"Using category: {category_name}")
     print(f"DataFrame shape: {df_raw.shape}")
     
     data = []
+    # Only looking for exact 6/1/2023 format
+    date_pattern = r'6/1/2023'
     
-    # Track the current date being processed
-    current_date = None
-    current_grade = None
-    
-    # Process all rows
+    # Scan the dataframe for cells containing 6/1/2023
     for i in range(df_raw.shape[0]):
-        if df_raw.shape[1] <= 1:
-            continue
-        
-        # Get values from first two columns
-        col0 = str(df_raw.iloc[i, 0]).strip() if df_raw.shape[1] > 0 else ""
-        col1 = str(df_raw.iloc[i, 1]).strip() if df_raw.shape[1] > 1 else ""
-        
-        # Debug print
-        print(f"Row {i}: Col0='{col0}', Col1='{col1}'")
-        
-        # If col0 contains "RXG", it's a grade row
-        if "RXG" in col0:
-            current_grade = col0
-            
-            # Look for a date pattern in col1
-            date_pattern = re.compile(r'(\d{1,2}/\d{1,2}/\d{4}|\d{1,2}/\d{1,2}/\d{2})')
-            date_match = date_pattern.search(col1)
-            
-            if date_match:
-                date_str = date_match.group(1)
-                print(f"Found date: {date_str}")
+        for j in range(min(5, df_raw.shape[1])):
+            if j < df_raw.shape[1]:
+                cell_value = str(df_raw.iloc[i, j])
                 
-                try:
-                    date_obj = pd.to_datetime(date_str)
-                    # If this is a 2023 date, track it
-                    if date_obj.year == 2023 and date_obj.month == 6 and date_obj.day == 1:
-                        current_date = date_str
-                        print(f"Found target date: {current_date}")
-                except Exception as e:
-                    print(f"Error parsing date: {e}")
-        
-        # If we have a current 2023 date and this row contains "Annual"
-        if current_date and "annual" in col1.lower():
-            print(f"Found Annual row for date {current_date}")
-            
-            # Get the annual salary from column 2
-            if df_raw.shape[1] > 2:
-                annual_str = str(df_raw.iloc[i, 2]).strip()
-                print(f"Annual value: {annual_str}")
-                
-                try:
-                    # Clean and convert to float
-                    annual_str = annual_str.replace('$', '').replace(',', '')
-                    annual_rate = float(annual_str)
+                # Check for exact 6/1/2023 pattern
+                if re.search(date_pattern, cell_value):
+                    print(f"Found date '6/1/2023' in row {i}, col {j}")
                     
-                    data.append({
-                        'grade': current_grade,
-                        'term': 'annual',
-                        'end_rate': round(annual_rate, 2),
-                        'category': category_name
-                    })
-                    print(f"Added record: {current_grade}, annual, {annual_rate}, {category_name}")
+                    # Look for RXG in the same row or previous row
+                    grade = None
+                    for k in range(min(3, df_raw.shape[1])):
+                        if k < df_raw.shape[1]:
+                            col_value = str(df_raw.iloc[i, k])
+                            if "RXG" in col_value:
+                                grade = "RXG"
+                                print(f"Found grade '{grade}' in row {i}, col {k}")
+                                break
                     
-                    # Reset current_date after processing to avoid duplicates
-                    current_date = None
-                except ValueError as e:
-                    print(f"Error converting annual rate: {e}")
+                    # Check previous row if grade not found
+                    if not grade and i > 0:
+                        for k in range(min(3, df_raw.shape[1])):
+                            if k < df_raw.shape[1]:
+                                col_value = str(df_raw.iloc[i-1, k])
+                                if "RXG" in col_value:
+                                    grade = "RXG"
+                                    print(f"Found grade '{grade}' in row {i-1}, col {k}")
+                                    break
+                    
+                    # Default to RXG if not found but we have the date
+                    if not grade:
+                        grade = "RXG"
+                        print(f"Using default grade 'RXG' for date in row {i}")
+                    
+                    # Look for "Annual" in the next 2-3 rows
+                    for offset in range(1, 4):
+                        if i+offset < df_raw.shape[0]:
+                            for k in range(min(5, df_raw.shape[1])):
+                                if k < df_raw.shape[1]:
+                                    col_value = str(df_raw.iloc[i+offset, k]).lower()
+                                    if "annual" in col_value:
+                                        print(f"Found 'Annual' in row {i+offset}, col {k}")
+                                        
+                                        # Look for annual value in this row
+                                        for val_col in range(min(5, df_raw.shape[1])):
+                                            if val_col < df_raw.shape[1] and val_col != k:
+                                                val = str(df_raw.iloc[i+offset, val_col])
+                                                try:
+                                                    # Skip non-numeric values
+                                                    val = val.replace('$', '').replace(',', '')
+                                                    if val and val.strip() and val.strip() != 'nan':
+                                                        annual_rate = float(val)
+                                                        
+                                                        data.append({
+                                                            'grade': grade,
+                                                            'term': 'annual',
+                                                            'end_rate': round(annual_rate, 2),
+                                                            'category': category_name
+                                                        })
+                                                        print(f"Added record: {grade}, annual, {annual_rate}, {category_name}")
+                                                        return pd.DataFrame(data)  # Return immediately after finding the first match
+                                                except:
+                                                    pass
     
     print(f"\nTotal records found: {len(data)}")
     result_df = pd.DataFrame(data)
@@ -106,5 +100,3 @@ def extract_rxg_data(df_input, category_name=None):
     
     return result_df
 
-# Example usage:
-# df_result = extract_rxg_data(df['6.1.2021-25'], "1ST STEP")
