@@ -1,6 +1,6 @@
 # Create a new column with cleaned categories
 merged_result['cleaned_category'] = merged_result['category'].apply(
-    lambda x: re.search(r'(.*?)\.[x]ls[x]?', x).group(1) if re.search(r'(.*?)\.[x]ls[x]?', x) else x
+    lambda x: re.search(r'(.*?\.xlsx|.*?\.xls)', x).group(1) if re.search(r'(.*?\.xlsx|.*?\.xls)', x) else x
 )
 
 # Get unique values from the cleaned column
