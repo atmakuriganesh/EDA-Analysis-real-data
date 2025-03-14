@@ -33,18 +33,40 @@ def process_salary_files(folder_path, file_list):
             
             # For Excel files - read all sheets
             elif file_ext in ['.xlsx', '.xls']:
-                # Get all sheet names
-                excel_file = pd.ExcelFile(file_path)
-                sheet_names = excel_file.sheet_names
+                # Try different engines for Excel files
+                engines = ['openpyxl', 'xlrd']
+                success = False
                 
-                for sheet_name in sheet_names:
+                for engine in engines:
                     try:
-                        df = pd.read_excel(file_path, sheet_name=sheet_name)
-                        processed_df = process_dataframe(df, f"{file_name}_{sheet_name}")
-                        if processed_df is not None:
-                            all_data.append(processed_df)
-                    except Exception as e:
-                        print(f"Error processing sheet {sheet_name} in {file_name}: {str(e)}")
+                        if file_ext == '.xls' and engine == 'openpyxl':
+                            # Skip openpyxl for .xls files as it doesn't support them
+                            continue
+                            
+                        print(f"Trying to read {file_name} with {engine} engine...")
+                        
+                        # Get all sheet names
+                        excel_file = pd.ExcelFile(file_path, engine=engine)
+                        sheet_names = excel_file.sheet_names
+                        
+                        for sheet_name in sheet_names:
+                            try:
+                                df = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine)
+                                processed_df = process_dataframe(df, f"{file_name}_{sheet_name}")
+                                if processed_df is not None:
+                                    all_data.append(processed_df)
+                            except Exception as sheet_e:
+                                print(f"Error processing sheet {sheet_name} in {file_name}: {str(sheet_e)}")
+                        
+                        # If we get here without errors, we've successfully processed the file
+                        success = True
+                        break
+                        
+                    except Exception as engine_e:
+                        print(f"Engine {engine} failed for {file_name}: {str(engine_e)}")
+                
+                if not success:
+                    print(f"Failed to process {file_name} with all available engines")
             else:
                 print(f"Unsupported file format for {file_name}")
                 continue
