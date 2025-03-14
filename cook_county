@@ -1,7 +1,208 @@
-# Create a new column with cleaned categories
-merged_result['cleaned_category'] = merged_result['category'].apply(
-    lambda x: re.search(r'(.*?\.xlsx|.*?\.xls)', x).group(1) if re.search(r'(.*?\.xlsx|.*?\.xls)', x) else x
-)
+import os
+import pandas as pd
+import re
+import glob
 
-# Get unique values from the cleaned column
-merged_result['cleaned_category'].unique()
+def process_salary_files(folder_path, file_list):
+    """
+    Process salary files from a folder based on a list of files.
+    Scans all sheets in each file automatically.
+    
+    Args:
+        folder_path (str): Path to the folder containing CSV/Excel files
+        file_list (list): List of filenames to process
+    
+    Returns:
+        pandas.DataFrame: Combined data with required columns
+    """
+    all_data = []
+    
+    for file_name in file_list:
+        file_path = os.path.join(folder_path, file_name)
+        
+        # Determine the file extension
+        file_ext = os.path.splitext(file_path)[1].lower()
+        
+        try:
+            # For CSV files
+            if file_ext == '.csv':
+                df = pd.read_csv(file_path)
+                processed_df = process_dataframe(df, file_name)
+                if processed_df is not None:
+                    all_data.append(processed_df)
+            
+            # For Excel files - read all sheets
+            elif file_ext in ['.xlsx', '.xls']:
+                # Get all sheet names
+                excel_file = pd.ExcelFile(file_path)
+                sheet_names = excel_file.sheet_names
+                
+                for sheet_name in sheet_names:
+                    try:
+                        df = pd.read_excel(file_path, sheet_name=sheet_name)
+                        processed_df = process_dataframe(df, f"{file_name}_{sheet_name}")
+                        if processed_df is not None:
+                            all_data.append(processed_df)
+                    except Exception as e:
+                        print(f"Error processing sheet {sheet_name} in {file_name}: {str(e)}")
+            else:
+                print(f"Unsupported file format for {file_name}")
+                continue
+                
+        except Exception as e:
+            print(f"Error processing {file_name}: {str(e)}")
+    
+    # Combine all data
+    if all_data:
+        combined_df = pd.concat(all_data, ignore_index=True)
+        
+        # Aggregate by grade and category to get min and max rates
+        aggregated_df = combined_df.groupby(['grade', 'category']).agg({
+            'start_rate': 'min',
+            'end_rate': 'max'
+        }).reset_index()
+        
+        # Add term column with value 'annual'
+        aggregated_df['term'] = 'annual'
+        
+        # Reorder columns
+        aggregated_df = aggregated_df[['grade', 'term', 'start_rate', 'end_rate', 'category']]
+        
+        return aggregated_df
+    else:
+        return pd.DataFrame(columns=['grade', 'term', 'start_rate', 'end_rate', 'category'])
+
+def process_dataframe(df, file_name):
+    """
+    Process a single dataframe to extract the required information.
+    
+    Args:
+        df (pandas.DataFrame): The dataframe to process
+        file_name (str): Name of the file/sheet for category
+    
+    Returns:
+        pandas.DataFrame: Processed dataframe with required columns
+    """
+    # Find the starting row where "GRADE" or "JOB CODE" appears
+    start_row = None
+    for i, row in df.iterrows():
+        row_str = ' '.join(str(x) for x in row.values)
+        if re.search(r'GRADE|JOB CODE|Grade|Job Code', row_str, re.IGNORECASE):
+            start_row = i
+            break
+    
+    if start_row is None:
+        print(f"Could not find starting row with GRADE or JOB CODE in {file_name}")
+        return None
+        
+    # Extract data from the start row onwards
+    df = df.iloc[start_row:]
+    
+    # Reset index
+    df = df.reset_index(drop=True)
+    
+    # Identify columns for Grade, Annual Min (start_rate), and Annual Max (end_rate)
+    grade_col = None
+    annual_col = None
+    annual_max_col = None
+    
+    # First try to find columns by header
+    for col in df.columns:
+        col_str = str(col).lower()
+        if 'grade' in col_str or 'job code' in col_str or 'job' in col_str:
+            grade_col = col
+        elif 'annual' in col_str and 'sal' in col_str:
+            annual_col = col
+    
+    # If we couldn't find the columns by name, try by content in first few rows
+    if grade_col is None or annual_col is None:
+        for col in df.columns:
+            sample_values = df[col].astype(str).head(10).tolist()
+            # Look for grade patterns (D01, D02, numerical values)
+            if any(re.match(r'^d\d+$', str(val).lower()) for val in sample_values) or \
+               any(re.match(r'^\d+$', str(val).strip()) for val in sample_values):
+                grade_col = col
+            # Look for dollar amount patterns
+            elif any(re.search(r'\$[\d,]+\.?\d*', str(val)) for val in sample_values) or \
+                 any(re.search(r'\d{4,}', str(val)) for val in sample_values):
+                if annual_col is None:
+                    annual_col = col
+                else:
+                    annual_max_col = col
+    
+    if grade_col is None or annual_col is None:
+        print(f"Could not identify required columns in {file_name}")
+        return None
+    
+    # Create a new dataframe with required columns
+    result_df = pd.DataFrame()
+    
+    # Extract grades
+    result_df['grade'] = df[grade_col].astype(str)
+    
+    # Set term to 'annual' for all records
+    result_df['term'] = 'annual'
+    
+    # Extract start_rate (min annual salary)
+    result_df['start_rate'] = df[annual_col]
+    
+    # Extract end_rate (max annual salary) if available, otherwise use start_rate
+    if annual_max_col is not None:
+        result_df['end_rate'] = df[annual_max_col]
+    else:
+        result_df['end_rate'] = df[annual_col]
+    
+    # Add category column (file name without extension)
+    result_df['category'] = os.path.splitext(file_name)[0]
+    
+    # Clean up data
+    result_df = result_df.dropna(subset=['grade'])
+    
+    # Clean grade values (remove whitespace and nan values)
+    result_df['grade'] = result_df['grade'].str.strip()
+    result_df = result_df[result_df['grade'] != 'nan']
+    result_df = result_df[result_df['grade'] != 'None']
+    result_df = result_df[result_df['grade'] != '']
+    
+    # Convert dollar amounts to numeric
+    for col in ['start_rate', 'end_rate']:
+        if result_df[col].dtype == object:
+            result_df[col] = result_df[col].astype(str)
+            result_df[col] = result_df[col].str.replace('$', '', regex=True)
+            result_df[col] = result_df[col].str.replace(',', '', regex=True)
+            result_df[col] = pd.to_numeric(result_df[col], errors='coerce')
+    
+    return result_df
+
+def main():
+    # Define the folder path (update this to your actual path)
+    folder_path = "/path/to/your/fabric/folder"
+    
+    # Define the list of files to process
+    files_to_process = [
+        "file1.csv",
+        "file2.xlsx",
+        # Add more files as needed
+    ]
+    
+    # Alternatively, process all CSV and Excel files in the folder
+    # files_to_process = []
+    # for pattern in ["*.csv", "*.xlsx", "*.xls"]:
+    #     files_to_process.extend([os.path.basename(file) for file in glob.glob(os.path.join(folder_path, pattern))])
+    
+    # Process the files
+    result_df = process_salary_files(folder_path, files_to_process)
+    
+    # Output the result
+    if not result_df.empty:
+        print(f"Total records: {len(result_df)}")
+        print(result_df.head())
+        
+        # Return the dataframe instead of saving to CSV
+        return result_df
+    else:
+        print("No data was processed")
+        return pd.DataFrame(columns=['grade', 'term', 'start_rate', 'end_rate', 'category'])
+
+if __name__ == "__main__":
+    main()
