@@ -78,10 +78,17 @@ def process_salary_files(folder_path, file_list):
     if all_data:
         combined_df = pd.concat(all_data, ignore_index=True)
         
+        # Make sure to convert to numeric before aggregation
+        combined_df['start_rate'] = pd.to_numeric(combined_df['start_rate'], errors='coerce')
+        combined_df['end_rate'] = pd.to_numeric(combined_df['end_rate'], errors='coerce')
+        
+        # Drop rows with NaN values in start_rate or end_rate
+        combined_df = combined_df.dropna(subset=['start_rate', 'end_rate'])
+        
         # Aggregate by grade and category to get min and max rates
         aggregated_df = combined_df.groupby(['grade', 'category']).agg({
-            'start_rate': 'min',
-            'end_rate': 'max'
+            'start_rate': 'min',  # Minimum annual salary for the grade
+            'end_rate': 'max'     # Maximum annual salary for the grade
         }).reset_index()
         
         # Add term column with value 'annual'
@@ -144,18 +151,15 @@ def process_dataframe(df, file_name):
     # Get the column name for the grade column
     grade_col = df.columns[grade_col_idx] if grade_col_idx is not None else None
     
-    # Identify columns for Annual salary
+    # Identify column for Annual salary
     annual_col = None
-    annual_max_col = None
     
     # Search through column names for Annual
     for j, col_name in enumerate(df.columns):
         col_str = str(col_name).lower()
         if 'annual' in col_str or 'salary' in col_str:
-            if annual_col is None:
-                annual_col = col_name
-            else:
-                annual_max_col = col_name
+            annual_col = col_name
+            break
     
     # If we couldn't find the annual column by name, search through the data
     if annual_col is None:
@@ -171,11 +175,9 @@ def process_dataframe(df, file_name):
             if numeric_count >= 3:  # If at least 3 numeric values found
                 numeric_cols.append(col)
         
-        # If we found numeric columns, use the rightmost ones for annual
+        # If we found numeric columns, use the one most likely to be annual salary
         if numeric_cols:
-            annual_col = numeric_cols[-1]  # Last numeric column
-            if len(numeric_cols) > 1:
-                annual_max_col = numeric_cols[-2]  # Second to last numeric column
+            annual_col = numeric_cols[-1]  # Use the rightmost numeric column as it's often annual
     
     if grade_col is None or annual_col is None:
         print(f"Could not identify required columns in {file_name}")
@@ -190,14 +192,10 @@ def process_dataframe(df, file_name):
     # Set term to 'annual' for all records
     result_df['term'] = 'annual'
     
-    # Extract start_rate (min annual salary)
+    # Set both start_rate and end_rate to the annual salary column
+    # We'll do the min/max aggregation later at the group level
     result_df['start_rate'] = df[annual_col]
-    
-    # Extract end_rate (max annual salary) if available, otherwise use start_rate
-    if annual_max_col is not None:
-        result_df['end_rate'] = df[annual_max_col]
-    else:
-        result_df['end_rate'] = df[annual_col]
+    result_df['end_rate'] = df[annual_col]
     
     # Add category column (file name without extension)
     result_df['category'] = os.path.splitext(file_name)[0]
@@ -221,42 +219,6 @@ def process_dataframe(df, file_name):
     
     return result_df
 
-def main():
-    # Define the folder path (update this to your actual path)
-    folder_path = "/path/to/your/fabric/folder"
+result_df = process_salary_files(folder_path_csv2, files_to_process)
     
-    # Define the list of files to process
-    files_to_process = [
-        "Non-Union Pharmacist.xlsx",
-        "Non-Union Nurses.xlsx",
-        "Non-Union Medical Technologist.xlsx",
-        "Non-Union IT.xlsx",
-        "Non-Union Doctors.xlsx",
-        "Non-Union County Police.xlsx",
-        "Non-Union Corporate.xlsx",
-        "Non-Union Assistant State's Attorney.xlsx",
-        "Non-Union Assistant Public Defender Supervisors.xlsx",
-        # Add more files as needed
-    ]
-    
-    # Alternatively, process all CSV and Excel files in the folder
-    # files_to_process = []
-    # for pattern in ["*.csv", "*.xlsx", "*.xls"]:
-    #     files_to_process.extend([os.path.basename(file) for file in glob.glob(os.path.join(folder_path, pattern))])
-    
-    # Process the files
-    result_df = process_salary_files(folder_path, files_to_process)
-    
-    # Output the result
-    if not result_df.empty:
-        print(f"Total records: {len(result_df)}")
-        print(result_df.head())
-        
-        # Return the dataframe instead of saving to CSV
-        return result_df
-    else:
-        print("No data was processed")
-        return pd.DataFrame(columns=['grade', 'term', 'start_rate', 'end_rate', 'category'])
-
-if __name__ == "__main__":
-    main()
+ 
