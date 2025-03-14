@@ -1,0 +1,19 @@
+file_names = [
+    "SEIU 73 Physician Assistant.xlsx",
+    "SEIU 73 OT.PT.xlsx",
+    "SEIU 73 Nursing.xlsx",
+    "SEIU 73 Medical Technologists.xlsx",
+    "SEIU 73 Health & Hospital.xlsx",
+    "SEIU 73 Health & Hospital JHS & CHS.xlsx",
+    "SEIU 73 Health & Hospital Facilities & Sheriff Service Employees.xlsx",
+    "SEIU 73 Corporate.xlsx",
+    "Non-Union Pharmacist.xlsx",
+    "Non-Union Nurses.xlsx",
+    "Non-Union Medical Technologist.xlsx",
+    "Non-Union IT.xlsx",
+    "Non-Union Doctors.xlsx",
+    "Non-Union County Police.xlsx",
+    "Non-Union Corporate.xlsx",
+    "Non-Union Assistant State's Attorney.xlsx",
+    "Non-Union Assistant Public Defender Supervisors.xlsx"
+]
