@@ -1,30 +1,62 @@
 import os
 import pandas as pd
-from concurrent.futures import ThreadPoolExecutor
+from collections import defaultdict
 
-def read_sheet(file_path, sheet_name):
-    """Read a single sheet from an Excel file."""
-    return sheet_name, pd.read_excel(file_path, sheet_name=sheet_name, header=None)
-
-def read_excel_file(file_path):
-    """Read all sheets from a single Excel file in parallel."""
-    xls = pd.ExcelFile(file_path)
-    with ThreadPoolExecutor() as executor:
-        sheet_data = dict(executor.map(lambda sheet: read_sheet(file_path, sheet), xls.sheet_names))
-    return os.path.basename(file_path), sheet_data
-
-def read_excel_files(folder_path):
-    """Read all Excel files in a folder in parallel."""
-    excel_data = {}
-    files = [os.path.join(folder_path, file) for file in os.listdir(folder_path) if file.endswith((".xls", ".xlsx"))]
+def read_all_excel_sheets(folder_path):
+    """
+    Reads all Excel files and their sheets from a specified folder.
     
-    with ThreadPoolExecutor() as executor:
-        results = executor.map(read_excel_file, files)
+    Args:
+        folder_path (str): Path to the folder containing Excel files
+        
+    Returns:
+        dict: A dictionary where keys are tuples of (excel_filename, sheet_name) 
+              and values are the corresponding DataFrames
+    """
+    # Dictionary to store all DataFrames
+    all_dataframes = {}
     
-    for file_name, sheets in results:
-        excel_data[file_name] = sheets
+    # Get all files in the folder
+    files = os.listdir(folder_path)
     
-    return excel_data
+    # Filter for Excel files
+    excel_files = [file for file in files if file.endswith(('.xlsx', '.xls', '.xlsm'))]
+    
+    if not excel_files:
+        print(f"No Excel files found in {folder_path}")
+        return all_dataframes
+    
+    # Process each Excel file
+    for excel_file in excel_files:
+        file_path = os.path.join(folder_path, excel_file)
+        print(f"Reading file: {excel_file}")
+        
+        try:
+            # Get all sheet names
+            xls = pd.ExcelFile(file_path)
+            sheet_names = xls.sheet_names
+            
+            # Read each sheet into a separate DataFrame
+            for sheet_name in sheet_names:
+                print(f"  - Reading sheet: {sheet_name}")
+                try:
+                    df = pd.read_excel(file_path, sheet_name=sheet_name)
+                    
+                    # Store the DataFrame with a tuple key of (file_name, sheet_name)
+                    all_dataframes[(excel_file, sheet_name)] = df
+                    
+                    # Print some basic info about this DataFrame
+                    print(f"    Rows: {df.shape[0]}, Columns: {df.shape[1]}")
+                except Exception as e:
+                    print(f"    Error reading sheet {sheet_name}: {str(e)}")
+        except Exception as e:
+            print(f"Error reading file {excel_file}: {str(e)}")
+    
+    print(f"\nTotal DataFrames created: {len(all_dataframes)}")
+    return all_dataframes
 
-excel_files_data = read_excel_files(folder_path_csv2)
-print("Excel files read successfully.")
+
+# Get all DataFrames
+dfs = read_all_excel_sheets(folder_path_csv2)
+    
+   
