@@ -1,49 +1,25 @@
 import os
 import pandas as pd
 
-def find_header_row(df, target_columns):
-    """Find the row index where the required columns are present."""
-    for i, row in df.iterrows():
-        if set(target_columns).issubset(set(row)):  # Check if all target columns exist in this row
-            return i
-    return None  # Return None if no suitable header row is found
-
-def extract_required_columns(file_path, required_columns):
-    """Extract specified columns from all sheets of an Excel file."""
-    extracted_data = []
-    xls = pd.ExcelFile(file_path)
-    
-    for sheet_name in xls.sheet_names:
-        df = pd.read_excel(xls, sheet_name=sheet_name, header=None)  # Read without header
-        header_row = find_header_row(df, required_columns)
-        
-        if header_row is not None:
-            df.columns = df.iloc[header_row]  # Set the correct header
-            df = df[header_row + 1:]  # Drop rows above header
-            df = df[required_columns]  # Select required columns
-            df['Source File'] = os.path.basename(file_path)
-            df['Sheet Name'] = sheet_name
-            extracted_data.append(df)
-    
-    return extracted_data
-
-def process_folder(folder_path, required_columns=['Grade', 'Term', 'Annual']):
-    """Process all Excel files in a folder and extract required columns."""
-    all_data = []
+def read_excel_files(folder_path):
+    """Read all Excel files in a folder without extracting specific columns."""
+    excel_data = {}
     
     for file in os.listdir(folder_path):
         if file.endswith(".xls") or file.endswith(".xlsx"):
             file_path = os.path.join(folder_path, file)
-            extracted_data = extract_required_columns(file_path, required_columns)
-            all_data.extend(extracted_data)
+            xls = pd.ExcelFile(file_path)
+            
+            file_sheets = {}
+            for sheet_name in xls.sheet_names:
+                df = pd.read_excel(xls, sheet_name=sheet_name, header=None)  # Read sheet without header
+                file_sheets[sheet_name] = df
+            
+            excel_data[file] = file_sheets
     
-    if all_data:
-        final_df = pd.concat(all_data, ignore_index=True)
-        final_df.to_excel("Extracted_Data.xlsx", index=False)
-        print("Extraction complete. Data saved to Extracted_Data.xlsx")
-    else:
-        print("No data extracted.")
+    return excel_data
 
 # Example usage
 folder_path = "path/to/your/folder"  # Change this to your folder path
-process_folder(folder_path)
+excel_files_data = read_excel_files(folder_path)
+print("Excel files read successfully.")
