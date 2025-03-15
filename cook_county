@@ -1,120 +1,49 @@
 import os
 import pandas as pd
-import re
 
-def extract_columns_from_excel_files(folder_path, target_columns=['Grade', 'Term', 'Annual']):
-    """
-    Extract specific columns from all Excel files in a folder and its subfolders.
-    Store results in a dictionary without creating output files.
-    
-    Args:
-        folder_path (str): Path to the folder containing Excel files
-        target_columns (list): List of column names to extract
-        
-    Returns:
-        dict: Dictionary with file names as keys and extracted data as values
-    """
-    # Dictionary to store results
-    results = {}
-    
-    # Get all Excel files in the folder and subfolders
-    excel_files = []
-    for root, _, files in os.walk(folder_path):
-        for file in files:
-            if file.endswith(('.xlsx', '.xls', '.xlsm')):
-                excel_files.append(os.path.join(root, file))
-    
-    print(f"Found {len(excel_files)} Excel files")
-    
-    # Process each Excel file
-    for file_path in excel_files:
-        file_name = os.path.basename(file_path)
-        print(f"Processing {file_name}...")
-        
-        try:
-            # Read the Excel file
-            xls = pd.ExcelFile(file_path)
-            file_results = {}
-            
-            # Process each sheet
-            for sheet_name in xls.sheet_names:
-                print(f"  Examining sheet: {sheet_name}")
-                
-                # Try different starting rows to find the headers
-                for start_row in range(0, 10):  # Try first 10 rows
-                    try:
-                        # Read the sheet with the current start_row
-                        df = pd.read_excel(file_path, sheet_name=sheet_name, header=start_row)
-                        
-                        # Check if any of the target columns exist in this dataframe
-                        # Use regex pattern matching to find columns that might be similar but not exact matches
-                        column_patterns = [re.compile(f".*{col}.*", re.IGNORECASE) for col in target_columns]
-                        found_columns = []
-                        
-                        for pattern in column_patterns:
-                            matching_cols = [col for col in df.columns if pattern.match(str(col))]
-                            found_columns.extend(matching_cols)
-                        
-                        if found_columns:
-                            print(f"    Found target columns at row {start_row + 1}: {found_columns}")
-                            
-                            # Extract only the found columns
-                            extracted_data = df[found_columns].copy()
-                            
-                            # Add category column with excel file name as value
-                            extracted_data['category'] = file_name
-                            
-                            # Store the results
-                            file_results[sheet_name] = {
-                                'data': extracted_data,
-                                'start_row': start_row + 1,
-                                'found_columns': found_columns
-                            }
-                            break
-                    
-                    except Exception as e:
-                        print(f"    Error reading with start_row={start_row}: {str(e)}")
-                        continue
-            
-            if file_results:
-                results[file_name] = file_results
-            else:
-                print(f"  No target columns found in any sheet in {file_name}")
-        
-        except Exception as e:
-            print(f"Error processing {file_name}: {str(e)}")
-    
-    return results
+def find_header_row(df, target_columns):
+    """Find the row index where the required columns are present."""
+    for i, row in df.iterrows():
+        if set(target_columns).issubset(set(row)):  # Check if all target columns exist in this row
+            return i
+    return None  # Return None if no suitable header row is found
 
-def main():
-    # Get folder path from user
-    folder_path = input("Enter the folder path containing Excel files: ")
+def extract_required_columns(file_path, required_columns):
+    """Extract specified columns from all sheets of an Excel file."""
+    extracted_data = []
+    xls = pd.ExcelFile(file_path)
     
-    # Get target columns from user (or use default)
-    custom_columns = input("Enter column names to extract (comma-separated) or press Enter for default [Grade, Term, Annual]: ")
-    if custom_columns.strip():
-        target_columns = [col.strip() for col in custom_columns.split(',')]
+    for sheet_name in xls.sheet_names:
+        df = pd.read_excel(xls, sheet_name=sheet_name, header=None)  # Read without header
+        header_row = find_header_row(df, required_columns)
+        
+        if header_row is not None:
+            df.columns = df.iloc[header_row]  # Set the correct header
+            df = df[header_row + 1:]  # Drop rows above header
+            df = df[required_columns]  # Select required columns
+            df['Source File'] = os.path.basename(file_path)
+            df['Sheet Name'] = sheet_name
+            extracted_data.append(df)
+    
+    return extracted_data
+
+def process_folder(folder_path, required_columns=['Grade', 'Term', 'Annual']):
+    """Process all Excel files in a folder and extract required columns."""
+    all_data = []
+    
+    for file in os.listdir(folder_path):
+        if file.endswith(".xls") or file.endswith(".xlsx"):
+            file_path = os.path.join(folder_path, file)
+            extracted_data = extract_required_columns(file_path, required_columns)
+            all_data.extend(extracted_data)
+    
+    if all_data:
+        final_df = pd.concat(all_data, ignore_index=True)
+        final_df.to_excel("Extracted_Data.xlsx", index=False)
+        print("Extraction complete. Data saved to Extracted_Data.xlsx")
     else:
-        target_columns = ['Grade', 'Term', 'Annual']
-    
-    print(f"Target columns: {target_columns}")
-    
-    # Extract data and store in dictionary
-    results = extract_columns_from_excel_files(folder_path, target_columns)
-    
-    # Print summary of extracted data
-    print("\nExtraction Summary:")
-    for file_name, file_results in results.items():
-        print(f"\nFile: {file_name}")
-        for sheet_name, sheet_data in file_results.items():
-            df = sheet_data['data']
-            print(f"  Sheet: {sheet_name}")
-            print(f"    Rows extracted: {len(df)}")
-            print(f"    Columns found: {sheet_data['found_columns']}")
-            print(f"    Header row: {sheet_data['start_row']}")
-    
-    print("\nAll data stored in the 'results' dictionary.")
-    return results
+        print("No data extracted.")
 
-if __name__ == "__main__":
-    extracted_data = main()
+# Example usage
+folder_path = "path/to/your/folder"  # Change this to your folder path
+process_folder(folder_path)
