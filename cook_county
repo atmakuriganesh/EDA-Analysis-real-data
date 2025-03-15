@@ -2,164 +2,119 @@ import os
 import pandas as pd
 import re
 
-
-class FileReader:
-    @staticmethod
-    def read_file(file_path):
-        file_ext = os.path.splitext(file_path)[1].lower()
-        if file_ext == '.csv':
-            return pd.read_csv(file_path), [None]
-        elif file_ext in ['.xlsx', '.xls']:
-            try:
-                excel_file = pd.ExcelFile(file_path, engine='xlrd' if file_ext == '.xls' else 'openpyxl')
-                return excel_file, excel_file.sheet_names
-            except:
-                try:
-                    excel_file = pd.ExcelFile(file_path, engine='openpyxl' if file_ext == '.xls' else 'xlrd')
-                    return excel_file, excel_file.sheet_names
-                except:
-                    return None, []
-        return None, []
-
-
-class DataProcessor:
-    @staticmethod
-    def find_grade_column(df):
-        # Check column names
-        for col in df.columns:
-            if isinstance(col, str) and re.search(r'GRADE|JOB CODE', str(col).upper()):
-                return col
-        
-        # Check row values
-        for i, row in df.astype(str).iterrows():
-            for j, val in enumerate(row):
-                if re.search(r'GRADE|JOB CODE', str(val).upper()):
-                    # Return next column if possible (actual grade values)
-                    if j < len(df.columns) - 1:
-                        return df.columns[j+1]
-                    return df.columns[j]
-        
-        # Last resort: first column that likely contains grades
-        for col in df.columns[:3]:
-            if df[col].astype(str).str.match(r'^[A-Za-z0-9]+$').any():
-                return col
-        return None
+def extract_columns_from_excel_files(folder_path, target_columns=['Grade', 'Term', 'Annual']):
+    """
+    Extract specific columns from all Excel files in a folder and its subfolders.
+    Store results in a dictionary without creating output files.
     
-    @staticmethod
-    def find_annual_column(df):
-        # Check column names
-        for col in df.columns:
-            if isinstance(col, str) and 'ANNUAL' in str(col).upper():
-                return col
+    Args:
+        folder_path (str): Path to the folder containing Excel files
+        target_columns (list): List of column names to extract
         
-        # Check row values
-        for i, row in df.astype(str).iterrows():
-            for j, val in enumerate(row):
-                if 'ANNUAL' in str(val).upper():
-                    # Return this column or next
-                    if j < len(df.columns) - 1:
-                        return df.columns[j+1]
-                    return df.columns[j]
-        
-        return None
+    Returns:
+        dict: Dictionary with file names as keys and extracted data as values
+    """
+    # Dictionary to store results
+    results = {}
     
-    @staticmethod
-    def find_start_row(df):
-        for i, row in df.astype(str).iterrows():
-            if any(re.search(r'GRADE|JOB CODE', str(val).upper()) for val in row):
-                return i + 1
-        return 0
+    # Get all Excel files in the folder and subfolders
+    excel_files = []
+    for root, _, files in os.walk(folder_path):
+        for file in files:
+            if file.endswith(('.xlsx', '.xls', '.xlsm')):
+                excel_files.append(os.path.join(root, file))
     
-    @staticmethod
-    def process_dataframe(df, file_name):
-        # Skip empty dataframes
-        if df.empty:
-            return None
-        
-        # Find data start row and extract data
-        start_row = DataProcessor.find_start_row(df)
-        df = df.iloc[start_row:].reset_index(drop=True)
-        
-        # Find columns
-        grade_col = DataProcessor.find_grade_column(df)
-        annual_col = DataProcessor.find_annual_column(df)
-        
-        if not grade_col or not annual_col:
-            return None
-        
-        # Create result DataFrame
-        result = pd.DataFrame({
-            'grade': df[grade_col].astype(str).str.strip(),
-            'term': 'annual',
-            'start_rate': df[annual_col],
-            'end_rate': df[annual_col],
-            'category': os.path.splitext(file_name)[0]
-        })
-        
-        # Clean data
-        result = result[result['grade'].str.strip() != '']
-        result = result.dropna(subset=['grade', 'start_rate'])
-        
-        # Convert salary to numeric
-        for col in ['start_rate', 'end_rate']:
-            result[col] = pd.to_numeric(
-                result[col].astype(str)
-                .str.replace('$', '', regex=True)
-                .str.replace(',', '', regex=True),
-                errors='coerce'
-            )
-        
-        return result.dropna(subset=['start_rate', 'end_rate'])
-
-
-class SalaryProcessor:
-    def __init__(self, folder_path):
-        self.folder_path = folder_path
+    print(f"Found {len(excel_files)} Excel files")
     
-    def process_files(self, file_list):
-        all_data = []
+    # Process each Excel file
+    for file_path in excel_files:
+        file_name = os.path.basename(file_path)
+        print(f"Processing {file_name}...")
         
-        for file_name in file_list:
-            file_path = os.path.join(self.folder_path, file_name)
-            excel_file, sheet_names = FileReader.read_file(file_path)
+        try:
+            # Read the Excel file
+            xls = pd.ExcelFile(file_path)
+            file_results = {}
             
-            if excel_file is None:
-                continue
+            # Process each sheet
+            for sheet_name in xls.sheet_names:
+                print(f"  Examining sheet: {sheet_name}")
                 
-            if sheet_names == [None]:  # CSV file
-                df = excel_file
-                processed_df = DataProcessor.process_dataframe(df, file_name)
-                if processed_df is not None:
-                    all_data.append(processed_df)
-            else:  # Excel file
-                for sheet_name in sheet_names:
+                # Try different starting rows to find the headers
+                for start_row in range(0, 10):  # Try first 10 rows
                     try:
-                        df = pd.read_excel(excel_file, sheet_name=sheet_name)
-                        processed_df = DataProcessor.process_dataframe(df, f"{file_name}_{sheet_name}")
-                        if processed_df is not None:
-                            all_data.append(processed_df)
-                    except:
-                        pass
+                        # Read the sheet with the current start_row
+                        df = pd.read_excel(file_path, sheet_name=sheet_name, header=start_row)
+                        
+                        # Check if any of the target columns exist in this dataframe
+                        # Use regex pattern matching to find columns that might be similar but not exact matches
+                        column_patterns = [re.compile(f".*{col}.*", re.IGNORECASE) for col in target_columns]
+                        found_columns = []
+                        
+                        for pattern in column_patterns:
+                            matching_cols = [col for col in df.columns if pattern.match(str(col))]
+                            found_columns.extend(matching_cols)
+                        
+                        if found_columns:
+                            print(f"    Found target columns at row {start_row + 1}: {found_columns}")
+                            
+                            # Extract only the found columns
+                            extracted_data = df[found_columns].copy()
+                            
+                            # Add category column with excel file name as value
+                            extracted_data['category'] = file_name
+                            
+                            # Store the results
+                            file_results[sheet_name] = {
+                                'data': extracted_data,
+                                'start_row': start_row + 1,
+                                'found_columns': found_columns
+                            }
+                            break
+                    
+                    except Exception as e:
+                        print(f"    Error reading with start_row={start_row}: {str(e)}")
+                        continue
+            
+            if file_results:
+                results[file_name] = file_results
+            else:
+                print(f"  No target columns found in any sheet in {file_name}")
         
-        # If no data processed, return empty DataFrame
-        if not all_data:
-            return pd.DataFrame(columns=['grade', 'term', 'start_rate', 'end_rate', 'category'])
-        
-        # Combine and aggregate data
-        combined_df = pd.concat(all_data, ignore_index=True)
-        
-        # Aggregate by grade
-        return combined_df.groupby('grade').agg({
-            'term': 'first',
-            'start_rate': 'min',
-            'end_rate': 'max',
-            'category': 'first'
-        }).reset_index()[['grade', 'term', 'start_rate', 'end_rate', 'category']]
-
-
-
+        except Exception as e:
+            print(f"Error processing {file_name}: {str(e)}")
     
-processor = SalaryProcessor(folder_path)
-result_df = processor.process_files(files_to_process)
+    return results
+
+def main():
+    # Get folder path from user
+    folder_path = input("Enter the folder path containing Excel files: ")
     
+    # Get target columns from user (or use default)
+    custom_columns = input("Enter column names to extract (comma-separated) or press Enter for default [Grade, Term, Annual]: ")
+    if custom_columns.strip():
+        target_columns = [col.strip() for col in custom_columns.split(',')]
+    else:
+        target_columns = ['Grade', 'Term', 'Annual']
     
+    print(f"Target columns: {target_columns}")
+    
+    # Extract data and store in dictionary
+    results = extract_columns_from_excel_files(folder_path, target_columns)
+    
+    # Print summary of extracted data
+    print("\nExtraction Summary:")
+    for file_name, file_results in results.items():
+        print(f"\nFile: {file_name}")
+        for sheet_name, sheet_data in file_results.items():
+            df = sheet_data['data']
+            print(f"  Sheet: {sheet_name}")
+            print(f"    Rows extracted: {len(df)}")
+            print(f"    Columns found: {sheet_data['found_columns']}")
+            print(f"    Header row: {sheet_data['start_row']}")
+    
+    print("\nAll data stored in the 'results' dictionary.")
+    return results
+
+if __name__ == "__main__":
+    extracted_data = main()
