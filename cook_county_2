@@ -13,3 +13,17 @@ def check_match(row):
 # Apply to unmatched rows
 unmatched['Key_Exists'] = unmatched.apply(check_match, axis=1)
 print(unmatched[['Grade_Match', 'Pay Schedule Filename', 'Key_Exists']])
+
+
+
+# Example key from unmatched
+key_to_check = unmatched.iloc[0]  # First unmatched row
+grade_match = key_to_check['Grade_Match']
+filename = key_to_check['Pay Schedule Filename']
+
+# Filter cook_county_df to see if this key exists there
+match_in_cook = cook_county_df[
+    (cook_county_df['Grade'] == grade_match) & 
+    (cook_county_df['Pay Schedule Filename'] == filename)
+]
+print(match_in_cook)
