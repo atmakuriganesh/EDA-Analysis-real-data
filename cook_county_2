@@ -1,19 +1,15 @@
-file_names = [
-    "SEIU 73 Physician Assistant.xlsx",
-    "SEIU 73 OT.PT.xlsx",
-    "SEIU 73 Nursing.xlsx",
-    "SEIU 73 Medical Technologists.xlsx",
-    "SEIU 73 Health & Hospital.xlsx",
-    "SEIU 73 Health & Hospital JHS & CHS.xlsx",
-    "SEIU 73 Health & Hospital Facilities & Sheriff Service Employees.xlsx",
-    "SEIU 73 Corporate.xlsx",
-    "Non-Union Pharmacist.xlsx",
-    "Non-Union Nurses.xlsx",
-    "Non-Union Medical Technologist.xlsx",
-    "Non-Union IT.xlsx",
-    "Non-Union Doctors.xlsx",
-    "Non-Union County Police.xlsx",
-    "Non-Union Corporate.xlsx",
-    "Non-Union Assistant State's Attorney.xlsx",
-    "Non-Union Assistant Public Defender Supervisors.xlsx"
-]
+# Show rows where Min Rate is missing
+unmatched = final_df[final_df['Min Rate'].isna()]
+print(unmatched[['Grade_Match', 'Pay Schedule Filename']].drop_duplicates())
+
+
+# Create a set of keys from cook_county_df
+cook_keys = set(zip(cook_county_df['Grade'], cook_county_df['Pay Schedule Filename']))
+
+# Function to check if each key in unmatched exists in cook_county_df
+def check_match(row):
+    return (row['Grade_Match'], row['Pay Schedule Filename']) in cook_keys
+
+# Apply to unmatched rows
+unmatched['Key_Exists'] = unmatched.apply(check_match, axis=1)
+print(unmatched[['Grade_Match', 'Pay Schedule Filename', 'Key_Exists']])
