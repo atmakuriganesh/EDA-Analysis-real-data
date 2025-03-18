@@ -1,0 +1,14 @@
+import pandas as pd
+
+# Load the Excel file
+file_path = 'your_file.xlsx'  # Replace with your actual file name
+excel_file = pd.ExcelFile(file_path)
+
+# List all sheet names
+sheet_names = excel_file.sheet_names
+
+# Read and concatenate all sheets into one DataFrame
+df_combined = pd.concat([excel_file.parse(sheet) for sheet in sheet_names], ignore_index=True)
+
+# Show the combined DataFrame
+print(df_combined.head())
