@@ -1,23 +1,21 @@
 for grade, values in annual_data.items():
     if values:
-        try:
-            # Sort the values to ensure we get the actual maximum
-            sorted_values = sorted([float(v) for v in values if v])
-            if sorted_values:
-                min_rate = int(sorted_values[0])
-                max_rate = int(sorted_values[-1])
+        # Get all values as a flat list of numbers
+        numeric_values = []
+        for v in values:
+            try:
+                if v != '':
+                    numeric_values.append(float(v))
+            except (ValueError, TypeError):
+                continue
                 
-                # Verify max_rate is not zero (unless it's actually zero in data)
-                if max_rate == 0 and len(sorted_values) > 1:
-                    # Try second highest if available
-                    max_rate = int(sorted_values[-2])
-                
-                all_data.append({
-                    'Grade': grade,
-                    'min rate': min_rate,
-                    'max rate': max_rate,
-                    'category': filename
-                })
-                print(f"Processed {filename}, grade {grade}: min={min_rate}, max={max_rate}, values={values}")
-        except Exception as e:
-            print(f"Error processing {filename}, grade {grade}: {e}, values={values}")
+        if numeric_values:
+            min_rate = int(min(numeric_values))
+            max_rate = max(numeric_values)  # Keep as int or round as needed
+            
+            all_data.append({
+                'Grade': grade,
+                'min rate': min_rate,
+                'max rate': int(max_rate),
+                'category': filename
+            })
