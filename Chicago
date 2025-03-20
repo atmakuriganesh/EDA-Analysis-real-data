@@ -1,14 +1,23 @@
-import pandas as pd
-
-# Load the Excel file
-file_path = 'your_file.xlsx'  # Replace with your actual file name
-excel_file = pd.ExcelFile(file_path)
-
-# List all sheet names
-sheet_names = excel_file.sheet_names
-
-# Read and concatenate all sheets into one DataFrame
-df_combined = pd.concat([excel_file.parse(sheet) for sheet in sheet_names], ignore_index=True)
-
-# Show the combined DataFrame
-print(df_combined.head())
+for grade, values in annual_data.items():
+    if values:
+        try:
+            # Sort the values to ensure we get the actual maximum
+            sorted_values = sorted([float(v) for v in values if v])
+            if sorted_values:
+                min_rate = int(sorted_values[0])
+                max_rate = int(sorted_values[-1])
+                
+                # Verify max_rate is not zero (unless it's actually zero in data)
+                if max_rate == 0 and len(sorted_values) > 1:
+                    # Try second highest if available
+                    max_rate = int(sorted_values[-2])
+                
+                all_data.append({
+                    'Grade': grade,
+                    'min rate': min_rate,
+                    'max rate': max_rate,
+                    'category': filename
+                })
+                print(f"Processed {filename}, grade {grade}: min={min_rate}, max={max_rate}, values={values}")
+        except Exception as e:
+            print(f"Error processing {filename}, grade {grade}: {e}, values={values}")
