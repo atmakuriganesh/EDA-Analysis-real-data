@@ -1,5 +1,60 @@
+# First extract the part before the hyphen in df1's Grade as shown in your code
+df_emp['Grade_Match'] = df_emp['Grade'].astype(str).str.split('-').str[0].str.strip()
+
+# Ensure consistent data types for merge columns
+# Convert Job Code to string in both dataframes
 df_emp['Job Code'] = df_emp['Job Code'].astype(str)
 cook_county_df['Job Code'] = cook_county_df['Job Code'].astype(str)
+
+# Ensure Pay Schedule Filename has consistent type
 df_emp['Pay Schedule Filename'] = df_emp['Pay Schedule Filename'].astype(str)
 cook_county_df['Pay Schedule Filename'] = cook_county_df['Pay Schedule Filename'].astype(str)
+
+# Ensure Grade in cook_county_df is string
 cook_county_df['Grade'] = cook_county_df['Grade'].astype(str)
+
+# Filter cook_county_df to only rows with valid Job Code
+valid_cook_county_job_code = cook_county_df[(cook_county_df['Job Code'].notna()) & 
+                                           (cook_county_df['Job Code'] != '') & 
+                                           (cook_county_df['Job Code'] != 'nan') &
+                                           (cook_county_df['Job Code'] != 'None')]
+
+# Filter cook_county_df to only rows without valid Job Code (for Grade matching)
+grade_cook_county = cook_county_df[~cook_county_df['Job Code'].isin(valid_cook_county_job_code['Job Code'])]
+
+# Step 1: First try to match using Job Code and Pay Schedule Filename
+job_code_merge = df_emp.merge(
+    valid_cook_county_job_code,
+    how='left',
+    left_on=['Job Code', 'Pay Schedule Filename'],
+    right_on=['Job Code', 'Pay Schedule Filename'],
+    indicator=True  # Adds _merge column to track which rows matched
+)
+
+# Find rows that didn't match in the first join (we'll use Grade for these)
+unmatched_mask = job_code_merge['_merge'] == 'left_only'
+unmatched_df = job_code_merge[unmatched_mask].drop(columns=['_merge', 'Min Rate', 'Max Rate', 
+                                                          'Sort_Order', 'Comments', 'Grade_y'])
+
+# Step 2: For unmatched rows, try matching on Grade_Match and Pay Schedule Filename
+grade_merge = unmatched_df.merge(
+    grade_cook_county,
+    how='left',
+    left_on=['Grade_Match', 'Pay Schedule Filename'],
+    right_on=['Grade', 'Pay Schedule Filename']
+)
+
+# Combine the results
+matched_job_code = job_code_merge[~unmatched_mask].drop(columns=['_merge'])
+final_df = pd.concat([matched_job_code, grade_merge])
+
+# Drop the temporary columns and unnecessary duplicate keys
+final_df.drop(columns=['Sort_Order', 'Grade_Match', 'Grade_y', 'Comments'], inplace=True)
+
+# Rename columns for clarity
+final_df.rename(columns={'Grade_x': 'Grade'}, inplace=True)
+
+# Final columns selection
+final_df.columns = ['Job Type', 'Job Description', 'Grade Ladder', 'Grade', 'Pay Schedule Filename', 'Min Rate', 'Max Rate', 'Job Code']
+
+final_df
