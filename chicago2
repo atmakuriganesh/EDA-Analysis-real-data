@@ -1,38 +1,5 @@
-# First extract the part before the hyphen in df1's Grade as shown in your code
-df_emp['Grade_Match'] = df_emp['Grade'].astype(str).str.split('-').str[0].str.strip()
-
-# Define a function to determine which rows to match by Job Code
-# Identify rows that have Job Code data
-job_code_mask = df_emp['Job Code'].notna() & (df_emp['Job Code'] != '')
-
-# Step 1: First merge for rows WITH Job Code - match on Job Code and Pay Schedule Filename
-job_code_merge = df_emp[job_code_mask].merge(
-    cook_county_df,
-    how='left',
-    left_on=['Job Code', 'Pay Schedule Filename'],
-    right_on=['Job Code', 'Pay Schedule Filename']
-)
-
-# Step 2: Second merge for remaining rows - match on Grade_Match and Pay Schedule Filename
-grade_merge = df_emp[~job_code_mask].merge(
-    cook_county_df, 
-    how='left', 
-    left_on=['Grade_Match', 'Pay Schedule Filename'], 
-    right_on=['Grade', 'Pay Schedule Filename']
-)
-
-# Combine the results 
-final_df = pd.concat([
-    job_code_merge,  # Rows that matched by Job Code
-    grade_merge      # Rows that matched by Grade_Match
-])
-
-# Drop the temporary columns and unnecessary duplicate keys
-final_df.drop(columns=['Sort_Order', 'Grade_Match', 'Grade_y', 'Comments'], inplace=True)
-
-# Rename columns for clarity if needed
-final_df.rename(columns={'Grade_x': 'Grade'}, inplace=True)
-
-# Final columns selection
-final_df.columns = ['Job Type', 'Job Description', 'Grade Ladder', 'Grade', 'Pay Schedule Filename', 'Min Rate', 'Max Rate', 'Job Code']
-final_df
+df_emp['Job Code'] = df_emp['Job Code'].astype(str)
+cook_county_df['Job Code'] = cook_county_df['Job Code'].astype(str)
+df_emp['Pay Schedule Filename'] = df_emp['Pay Schedule Filename'].astype(str)
+cook_county_df['Pay Schedule Filename'] = cook_county_df['Pay Schedule Filename'].astype(str)
+cook_county_df['Grade'] = cook_county_df['Grade'].astype(str)
