@@ -1,8 +1,5 @@
-import numpy as np
-import pandas as pd
-from pathlib import Path
-
 all_data = []
+job_code_data = {}  # Dictionary to track min/max for each job code
 
 for file_path in Path(folder_path).glob('*.xlsx'):
     filename = file_path.name
@@ -16,7 +13,7 @@ for file_path in Path(folder_path).glob('*.xlsx'):
         except Exception as e:
             continue
             
-        # Ensure column names are standardized (in case of spacing or capitalization issues)
+        # Ensure column names are standardized
         df.columns = [str(col).strip() for col in df.columns]
         
         # Find job code column - look for variations in naming
@@ -36,35 +33,21 @@ for file_path in Path(folder_path).glob('*.xlsx'):
         # Filter out rows with invalid data
         df = df.dropna(subset=[job_code_col, 'Annual Salary'])
         
-        # Process each row directly (avoid groupby if it's causing issues)
+        # Process each row and aggregate min/max directly
         for _, row in df.iterrows():
             job_code = str(row[job_code_col]).strip()
             annual_salary = row['Annual Salary']
             
             # Only process valid data
             if job_code and not pd.isna(annual_salary):
-                all_data.append({
-                    'Grade': np.nan,
-                    'min_rate': int(annual_salary),
-                    'max_rate': int(annual_salary),
-                    'category': filename,
-                    'Job_code': job_code
-                })
-    else:
-        # Your existing code for other files with grades would go here
-        # ...
-
-# Create final dataframe with your specified column names
-result_df = pd.DataFrame(all_data, columns=['Grade', 'min_rate', 'max_rate', 'category', 'Job_code'])
-result_df.columns = ['Grade', 'Min Rate', 'Max Rate', 'Pay Schedule Filename', 'Job_code']
-
-# If you need to aggregate after collecting all data:
-if all_data:
-    final_df = result_df.groupby('Job_code').agg({
-        'Grade': 'first',  # Keep NaN
-        'Min Rate': 'min',
-        'Max Rate': 'max',
-        'Pay Schedule Filename': 'first'
-    }).reset_index()
-else:
-    final_df = result_df
+                # Initialize or update min/max for this job code
+                if job_code not in job_code_data:
+                    job_code_data[job_code] = {
+                        'min_rate': annual_salary,
+                        'max_rate': annual_salary,
+                        'category': filename
+                    }
+                else:
+                    # Update min and max if needed
+                    job_code_data[job_code]['min_rate'] = min(job_code_data[job_code]['min_rate'], annual_salary)
+                    job_code_data[job_code]['max_rate'] = max(job_code_data[job_code]['max_rate'], annual_salary)
