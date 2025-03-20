@@ -1,1 +1,26 @@
+# Find job code column - look for variations in naming
+job_code_col = None
+for col in df.columns:
+    # Check for common variations of job code naming
+    if any(job_name in col.lower() for job_name in ['job code', 'jobcode', 'job_code', 'job-code', 'occupation code']):
+        job_code_col = col
+        break
 
+# If job_code_col is still None after checking, print columns for debugging
+if job_code_col is None:
+    print(f"Warning: Job Code column not found in {filename}")
+    print(f"Available columns: {list(df.columns)}")
+    continue  # Skip this file if job code column not found
+
+# Make sure to use job_code_col in the groupby
+df['Annual Salary'] = pd.to_numeric(df['Annual Salary'], errors='coerce')
+grouped = df.groupby(job_code_col)['Annual Salary'].agg(['min', 'max'])
+
+for job_code, data in grouped.iterrows():
+    all_data.append({
+        'Grade': np.nan,
+        'min rate': int(data['min']),
+        'max rate': int(data['max']),
+        'category': filename,
+        'Job Code': job_code
+    })
