@@ -1,26 +1,30 @@
-# Find job code column - look for variations in naming
-job_code_col = None
-for col in df.columns:
-    # Check for common variations of job code naming
-    if any(job_name in col.lower() for job_name in ['job code', 'jobcode', 'job_code', 'job-code', 'occupation code']):
-        job_code_col = col
-        break
+all_data = []
 
-# If job_code_col is still None after checking, print columns for debugging
-if job_code_col is None:
-    print(f"Warning: Job Code column not found in {filename}")
-    print(f"Available columns: {list(df.columns)}")
-    continue  # Skip this file if job code column not found
+for file_path in Path(folder_path).glob('*.xlsx'):
+    filename = file_path.name
 
-# Make sure to use job_code_col in the groupby
-df['Annual Salary'] = pd.to_numeric(df['Annual Salary'], errors='coerce')
-grouped = df.groupby(job_code_col)['Annual Salary'].agg(['min', 'max'])
+    if filename.startswith('PAYP024 COUPE Skilled Trades 6.1.23'):
+        # Process single file
+        try:
+            df = pd.read_excel(file_path, sheet_name='6.1.23')
+        except ValueError:
+            continue  # Skip if sheet not found
+        except Exception as e:
+            continue
 
-for job_code, data in grouped.iterrows():
-    all_data.append({
-        'Grade': np.nan,
-        'min rate': int(data['min']),
-        'max rate': int(data['max']),
-        'category': filename,
-        'Job Code': job_code
-    })
+        # Ensure column names are standardized (in case of spacing or capitalization issues)
+        df.columns = [str(col).strip() for col in df.columns]
+
+        # Find job code column - look for variations in naming
+        job_code_col = None
+        for col in df.columns:
+            # Check for common variations of job code naming
+            if any(job_name in col.lower() for job_name in ['job code', 'jobcode', 'job_code', 'job-code', 'occupation code']):
+                job_code_col = col
+                break
+
+        # If job_code_col is still None after checking, print columns for debugging
+        if job_code_col is None:
+            print(f"Warning: Job Code column not found in {filename}")
+            print(f"Available columns: {list(df.columns)}")
+            continue 
