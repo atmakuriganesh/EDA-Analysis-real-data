@@ -1,32 +1,38 @@
-if filename.startswith('PAYFD24_COUPE_Skilled_Trades_6.1.23'):
-        # Process single file
-        try:
-            df = pd.read_excel(file_path, sheet_name='6.1.23')
-        except ValueError:
-            continue  # Skip if sheet not found
-        except Exception as e:
-            continue
-            
-        # Ensure column names are standardized
-        df.columns = [str(col).strip() for col in df.columns]
-        
-        # Direct access to the Job Code column
-        if 'Job Code' in df.columns:
-            job_code_col = 'Job Code'
-        else:
-            # Fall back to searching for variations if exact name isn't found
-            job_code_col = None
-            for col in df.columns:
-                if 'job code' in col.lower():
-                    job_code_col = col
-                    break
-                    
-        if job_code_col is None or 'Annual Salary' not in df.columns:
-            continue
-        
-        # Convert columns to appropriate types
-        df['Annual Salary'] = pd.to_numeric(df['Annual Salary'], errors='coerce')
-        df[job_code_col] = df[job_code_col].astype(str).str.strip()  # Clean up job codes
-        
-        # Filter out rows with invalid data
-        df = df.dropna(subset=[job_code_col, 'Annual Salary'])
+# First extract the part before the hyphen in df1's Grade as shown in your code
+df_emp['Grade_Match'] = df_emp['Grade'].astype(str).str.split('-').str[0].str.strip()
+
+# Define a function to determine which rows to match by Job_code
+# Identify rows that have Job_code data
+job_code_mask = df_emp['Job_code'].notna() & (df_emp['Job_code'] != '')
+
+# Step 1: First merge for rows WITH Job_code - match on Job_code and Pay Schedule Filename
+job_code_merge = df_emp[job_code_mask].merge(
+    cook_county_df,
+    how='left',
+    left_on=['Job_code', 'Pay Schedule Filename'],
+    right_on=['Job_code', 'Pay Schedule Filename']
+)
+
+# Step 2: Second merge for remaining rows - match on Grade_Match and Pay Schedule Filename
+grade_merge = df_emp[~job_code_mask].merge(
+    cook_county_df, 
+    how='left', 
+    left_on=['Grade_Match', 'Pay Schedule Filename'], 
+    right_on=['Grade', 'Pay Schedule Filename']
+)
+
+# Combine the results 
+final_df = pd.concat([
+    job_code_merge,  # Rows that matched by Job_code
+    grade_merge      # Rows that matched by Grade_Match
+])
+
+# Drop the temporary columns and unnecessary duplicate keys
+final_df.drop(columns=['Sort_Order', 'Grade_Match', 'Grade_y', 'Comments'], inplace=True)
+
+# Rename columns for clarity if needed
+final_df.rename(columns={'Grade_x': 'Grade'}, inplace=True)
+
+# Final columns selection
+final_df.columns = ['Job Type', 'Job Description', 'Grade Ladder', 'Grade', 'Pay Schedule Filename', 'Min Rate', 'Max Rate', 'Job_code']
+final_df
