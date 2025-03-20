@@ -1,30 +1,70 @@
-for grade, values in annual_data.items():
-    if values:
-        # Filter out empty strings, None values, and non-numeric values
-        numeric_values = []
-        for v in values:
-            try:
-                # Only include if it can be converted to a positive number
-                if v and float(v) > 0:
-                    numeric_values.append(float(v))
-            except (ValueError, TypeError):
-                continue
+import numpy as np
+import pandas as pd
+from pathlib import Path
+
+all_data = []
+
+for file_path in Path(folder_path).glob('*.xlsx'):
+    filename = file_path.name
+    
+    if filename.startswith('PAYFD24_COUPE_Skilled_Trades_6.1.23'):
+        # Process single file
+        try:
+            df = pd.read_excel(file_path, sheet_name='6.1.23')
+        except ValueError:
+            continue  # Skip if sheet not found
+        except Exception as e:
+            continue
+            
+        # Ensure column names are standardized (in case of spacing or capitalization issues)
+        df.columns = [str(col).strip() for col in df.columns]
+        
+        # Find job code column - look for variations in naming
+        job_code_col = None
+        for col in df.columns:
+            if 'job code' in col.lower():
+                job_code_col = col
+                break
                 
-        if numeric_values:
-            min_rate = int(min(numeric_values))
-            max_rate = int(max(numeric_values))
+        if job_code_col is None or 'Annual Salary' not in df.columns:
+            continue
             
-            # Add a check to ensure min_rate is not zero
-            if min_rate == 0:
-                print(f"Warning: min_rate is 0 for {filename}, grade {grade}, values: {values}")
-                # Find the smallest non-zero value if possible
-                non_zero_vals = [v for v in numeric_values if v > 0]
-                if non_zero_vals:
-                    min_rate = int(min(non_zero_vals))
+        # Convert columns to appropriate types
+        df['Annual Salary'] = pd.to_numeric(df['Annual Salary'], errors='coerce')
+        df[job_code_col] = df[job_code_col].astype(str)  # Ensure job code is string
+        
+        # Filter out rows with invalid data
+        df = df.dropna(subset=[job_code_col, 'Annual Salary'])
+        
+        # Process each row directly (avoid groupby if it's causing issues)
+        for _, row in df.iterrows():
+            job_code = str(row[job_code_col]).strip()
+            annual_salary = row['Annual Salary']
             
-            all_data.append({
-                'Grade': grade,
-                'min rate': min_rate,
-                'max rate': max_rate,
-                'category': filename
-            })
+            # Only process valid data
+            if job_code and not pd.isna(annual_salary):
+                all_data.append({
+                    'Grade': np.nan,
+                    'min_rate': int(annual_salary),
+                    'max_rate': int(annual_salary),
+                    'category': filename,
+                    'Job_code': job_code
+                })
+    else:
+        # Your existing code for other files with grades would go here
+        # ...
+
+# Create final dataframe with your specified column names
+result_df = pd.DataFrame(all_data, columns=['Grade', 'min_rate', 'max_rate', 'category', 'Job_code'])
+result_df.columns = ['Grade', 'Min Rate', 'Max Rate', 'Pay Schedule Filename', 'Job_code']
+
+# If you need to aggregate after collecting all data:
+if all_data:
+    final_df = result_df.groupby('Job_code').agg({
+        'Grade': 'first',  # Keep NaN
+        'Min Rate': 'min',
+        'Max Rate': 'max',
+        'Pay Schedule Filename': 'first'
+    }).reset_index()
+else:
+    final_df = result_df
