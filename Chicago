@@ -1,21 +1,30 @@
 for grade, values in annual_data.items():
     if values:
-        # Get all values as a flat list of numbers
+        # Filter out empty strings, None values, and non-numeric values
         numeric_values = []
         for v in values:
             try:
-                if v != '':
+                # Only include if it can be converted to a positive number
+                if v and float(v) > 0:
                     numeric_values.append(float(v))
             except (ValueError, TypeError):
                 continue
                 
         if numeric_values:
             min_rate = int(min(numeric_values))
-            max_rate = max(numeric_values)  # Keep as int or round as needed
+            max_rate = int(max(numeric_values))
+            
+            # Add a check to ensure min_rate is not zero
+            if min_rate == 0:
+                print(f"Warning: min_rate is 0 for {filename}, grade {grade}, values: {values}")
+                # Find the smallest non-zero value if possible
+                non_zero_vals = [v for v in numeric_values if v > 0]
+                if non_zero_vals:
+                    min_rate = int(min(non_zero_vals))
             
             all_data.append({
                 'Grade': grade,
                 'min rate': min_rate,
-                'max rate': int(max_rate),
+                'max rate': max_rate,
                 'category': filename
             })
