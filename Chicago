@@ -1,53 +1,9 @@
-all_data = []
-job_code_data = {}  # Dictionary to track min/max for each job code
-
-for file_path in Path(folder_path).glob('*.xlsx'):
-    filename = file_path.name
-    
-    if filename.startswith('PAYFD24_COUPE_Skilled_Trades_6.1.23'):
-        # Process single file
-        try:
-            df = pd.read_excel(file_path, sheet_name='6.1.23')
-        except ValueError:
-            continue  # Skip if sheet not found
-        except Exception as e:
-            continue
-            
-        # Ensure column names are standardized
-        df.columns = [str(col).strip() for col in df.columns]
-        
-        # Find job code column - look for variations in naming
-        job_code_col = None
-        for col in df.columns:
-            if 'job code' in col.lower():
-                job_code_col = col
-                break
-                
-        if job_code_col is None or 'Annual Salary' not in df.columns:
-            continue
-            
-        # Convert columns to appropriate types
-        df['Annual Salary'] = pd.to_numeric(df['Annual Salary'], errors='coerce')
-        df[job_code_col] = df[job_code_col].astype(str)  # Ensure job code is string
-        
-        # Filter out rows with invalid data
-        df = df.dropna(subset=[job_code_col, 'Annual Salary'])
-        
-        # Process each row and aggregate min/max directly
-        for _, row in df.iterrows():
-            job_code = str(row[job_code_col]).strip()
-            annual_salary = row['Annual Salary']
-            
-            # Only process valid data
-            if job_code and not pd.isna(annual_salary):
-                # Initialize or update min/max for this job code
-                if job_code not in job_code_data:
-                    job_code_data[job_code] = {
-                        'min_rate': annual_salary,
-                        'max_rate': annual_salary,
-                        'category': filename
-                    }
-                else:
-                    # Update min and max if needed
-                    job_code_data[job_code]['min_rate'] = min(job_code_data[job_code]['min_rate'], annual_salary)
-                    job_code_data[job_code]['max_rate'] = max(job_code_data[job_code]['max_rate'], annual_salary)
+if all_data:
+    final_df = result_df.groupby('Job_code').agg({
+        'Grade': 'first',  # Keep NaN
+        'Min Rate': 'min',
+        'Max Rate': 'max',
+        'Pay Schedule Filename': 'first'
+    }).reset_index()
+else:
+    final_df = result_df
