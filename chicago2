@@ -1,16 +1,16 @@
 # First extract the part before the hyphen in df1's Grade as shown in your code
 df_emp['Grade_Match'] = df_emp['Grade'].astype(str).str.split('-').str[0].str.strip()
 
-# Define a function to determine which rows to match by Job_code
-# Identify rows that have Job_code data
-job_code_mask = df_emp['Job_code'].notna() & (df_emp['Job_code'] != '')
+# Define a function to determine which rows to match by Job Code
+# Identify rows that have Job Code data
+job_code_mask = df_emp['Job Code'].notna() & (df_emp['Job Code'] != '')
 
-# Step 1: First merge for rows WITH Job_code - match on Job_code and Pay Schedule Filename
+# Step 1: First merge for rows WITH Job Code - match on Job Code and Pay Schedule Filename
 job_code_merge = df_emp[job_code_mask].merge(
     cook_county_df,
     how='left',
-    left_on=['Job_code', 'Pay Schedule Filename'],
-    right_on=['Job_code', 'Pay Schedule Filename']
+    left_on=['Job Code', 'Pay Schedule Filename'],
+    right_on=['Job Code', 'Pay Schedule Filename']
 )
 
 # Step 2: Second merge for remaining rows - match on Grade_Match and Pay Schedule Filename
@@ -23,7 +23,7 @@ grade_merge = df_emp[~job_code_mask].merge(
 
 # Combine the results 
 final_df = pd.concat([
-    job_code_merge,  # Rows that matched by Job_code
+    job_code_merge,  # Rows that matched by Job Code
     grade_merge      # Rows that matched by Grade_Match
 ])
 
@@ -34,5 +34,5 @@ final_df.drop(columns=['Sort_Order', 'Grade_Match', 'Grade_y', 'Comments'], inpl
 final_df.rename(columns={'Grade_x': 'Grade'}, inplace=True)
 
 # Final columns selection
-final_df.columns = ['Job Type', 'Job Description', 'Grade Ladder', 'Grade', 'Pay Schedule Filename', 'Min Rate', 'Max Rate', 'Job_code']
+final_df.columns = ['Job Type', 'Job Description', 'Grade Ladder', 'Grade', 'Pay Schedule Filename', 'Min Rate', 'Max Rate', 'Job Code']
 final_df
