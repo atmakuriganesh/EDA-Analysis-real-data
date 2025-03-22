@@ -1,63 +1,21 @@
-all_data = []
+data = {
+    'GRADE': [6, 6, 8, 8, 7, 7, 4, 4, 12, 12, 3, 3, '9/SR', '14/PR', 5, 1, 2],
+    'TYPE': ['G', 'B', 'B', 'GY', 'GY', 'B', 'G', 'E', 'B', 'BX', 'D', 'G', 'G', 'BX', 'E', 'IT', 'D'],
+    'MIN_RATE': [76956, 37080, 40680, 78132, 71652, 38832, 63420, 107136, 58956, 49692, 94686, 57588, 102876, 59856, 117960, 104580, 81972],
+    'MAX_RATE': [112020, 64332, 70608, 105648, 96756, 67344, 92808, 157968, 102336, 81036, 141318, 84276, 145872, 97548, 170016, 135456, 124854]
+}
 
-for file_path in Path(folder_path).glob('*.xlsx'):
-    filename = file_path.name
-    job_code_data = {}  # Reset for each file
-    
-    if filename.startswith('PAYFD24_COUPE_Skilled_Trades_6.1.23'):
-        # Process single file
-        try:
-            df = pd.read_excel(file_path, sheet_name='6.1.23')
-        except ValueError:
-            continue  # Skip if sheet not found
-        except Exception as e:
-            continue
-            
-        # Ensure column names are standardized
-        df.columns = [str(col).strip() for col in df.columns]
-        
-        # Find job code column - look for variations in naming
-        job_code_col = None
-        for col in df.columns:
-            if 'job code' in col.lower():
-                job_code_col = col
-                break
-                
-        if job_code_col is None or 'Annual Salary' not in df.columns:
-            continue
-            
-        # Convert columns to appropriate types
-        df['Annual Salary'] = pd.to_numeric(df['Annual Salary'], errors='coerce')
-        df[job_code_col] = df[job_code_col].astype(str)  # Ensure job code is string
-        
-        # Filter out rows with invalid data
-        df = df.dropna(subset=[job_code_col, 'Annual Salary'])
-        
-        # Process each row and aggregate min/max directly
-        for _, row in df.iterrows():
-            job_code = str(row[job_code_col]).strip()
-            annual_salary = row['Annual Salary']
-            
-            # Only process valid data
-            if job_code and not pd.isna(annual_salary):
-                # Initialize or update min/max for this job code
-                if job_code not in job_code_data:
-                    job_code_data[job_code] = {
-                        'min_rate': annual_salary,
-                        'max_rate': annual_salary,
-                        'category': filename
-                    }
-                else:
-                    # Update min and max if needed
-                    job_code_data[job_code]['min_rate'] = min(job_code_data[job_code]['min_rate'], annual_salary)
-                    job_code_data[job_code]['max_rate'] = max(job_code_data[job_code]['max_rate'], annual_salary)
-        
-        # Convert the aggregated dictionary to the final data format for this file
-        for job_code, data in job_code_data.items():
-            all_data.append({
-                'Grade': np.nan,
-                'min_rate': int(data['min_rate']),
-                'max_rate': int(data['max_rate']),
-                'category': data['category'],
-                'Job_code': job_code
-            })
+manual_df = pd.DataFrame(data)
+
+# Set multi-index for precise updates
+manual_df.set_index(['GRADE', 'TYPE'], inplace=True)
+join_df.set_index(['GRADE', 'TYPE'], inplace=True)
+
+# Fill missing MIN_RATE
+join_df['MIN_RATE'] = join_df['MIN_RATE'].fillna(manual_df['MIN_RATE'])
+
+# Fill missing MAX_RATE
+join_df['MAX_RATE'] = join_df['MAX_RATE'].fillna(manual_df['MAX_RATE'])
+
+# Reset index if needed
+join_df.reset_index(inplace=True)
