@@ -1,26 +1,39 @@
-data = {
-    'GRADE': [6, 6, 8, 8, 7, 7, 4, 4, 12, 12, 3, 3, '9/SR', '14/PR', 5, 1, 2],
-    'TYPE': ['G', 'B', 'B', 'GY', 'GY', 'B', 'G', 'E', 'B', 'BX', 'D', 'G', 'G', 'BX', 'E', 'IT', 'D'],
-    'MIN_RATE': [76956, 37080, 40680, 78132, 71652, 38832, 63420, 107136, 58956, 49692, 94686, 57588, 102876, 59856, 117960, 104580, 81972],
-    'MAX_RATE': [112020, 64332, 70608, 105648, 96756, 67344, 92808, 157968, 102336, 81036, 141318, 84276, 145872, 97548, 170016, 135456, 124854]
-}
-
-manual_df = pd.DataFrame(data)
-
-# Set multi-index for precise updates
-manual_df.set_index(['GRADE', 'TYPE'], inplace=True)
-join_df.set_index(['GRADE', 'TYPE'], inplace=True)
-
-# Fill missing MIN_RATE
-join_df['MIN_RATE'] = join_df['MIN_RATE'].fillna(manual_df['MIN_RATE'])
-
-# Fill missing MAX_RATE
-join_df['MAX_RATE'] = join_df['MAX_RATE'].fillna(manual_df['MAX_RATE'])
-
-# Reset index if needed
-join_df.reset_index(inplace=True)
-
-
-
-manual_df['GRADE'] = manual_df['GRADE'].astype(str)
-join_df['GRD'] = join_df['GRD'].astype(str)
+def left_join_dataframes(df1, df2, on_columns):
+    """
+    Perform a left join on two DataFrames based on specified columns,
+    but exclude NaN values from being considered matches.
+    
+    Parameters:
+    df1 (pd.DataFrame): The main DataFrame.
+    df2 (pd.DataFrame): The DataFrame to join.
+    on_columns (list): List of columns to join on.
+    
+    Returns:
+    pd.DataFrame: The merged DataFrame.
+    """
+    df1 = df1.copy()
+    df2 = df2.copy()
+    
+    # Process GRD column strings
+    if 'GRD' in on_columns:
+        df1['GRD'] = df1['GRD'].str.upper().str.lstrip('0')
+        df2['GRD'] = df2['GRD'].str.upper().str.lstrip('0')
+    
+    # Create a join key that excludes NaN matches
+    for col in on_columns:
+        # Create temporary columns for joining that mark NaN values distinctly
+        df1[f'{col}_valid'] = df1[col].notna()
+        df2[f'{col}_valid'] = df2[col].notna()
+    
+    # Add validation columns to the join criteria
+    validation_cols = [f'{col}_valid' for col in on_columns]
+    join_cols = on_columns + validation_cols
+    
+    # Perform the join
+    merged_df = pd.merge(df1, df2, on=join_cols, how='left')
+    
+    # Clean up temporary columns
+    for col in validation_cols:
+        merged_df = merged_df.drop(columns=[col])
+    
+    return merged_df
