@@ -19,3 +19,8 @@ join_df['MAX_RATE'] = join_df['MAX_RATE'].fillna(manual_df['MAX_RATE'])
 
 # Reset index if needed
 join_df.reset_index(inplace=True)
+
+
+
+manual_df['GRADE'] = manual_df['GRADE'].astype(str)
+join_df['GRD'] = join_df['GRD'].astype(str)
