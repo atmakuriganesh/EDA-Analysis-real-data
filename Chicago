@@ -1,7 +1,9 @@
+import pandas as pd
+
 def left_join_dataframes(df1, df2, on_columns):
     """
     Perform a left join on two DataFrames based on specified columns,
-    but exclude NaN values from being considered matches.
+    excluding rows where GRD equals the string 'nan'.
     
     Parameters:
     df1 (pd.DataFrame): The main DataFrame.
@@ -18,22 +20,35 @@ def left_join_dataframes(df1, df2, on_columns):
     if 'GRD' in on_columns:
         df1['GRD'] = df1['GRD'].str.upper().str.lstrip('0')
         df2['GRD'] = df2['GRD'].str.upper().str.lstrip('0')
-    
-    # Create a join key that excludes NaN matches
-    for col in on_columns:
-        # Create temporary columns for joining that mark NaN values distinctly
-        df1[f'{col}_valid'] = df1[col].notna()
-        df2[f'{col}_valid'] = df2[col].notna()
-    
-    # Add validation columns to the join criteria
-    validation_cols = [f'{col}_valid' for col in on_columns]
-    join_cols = on_columns + validation_cols
-    
-    # Perform the join
-    merged_df = pd.merge(df1, df2, on=join_cols, how='left')
-    
-    # Clean up temporary columns
-    for col in validation_cols:
-        merged_df = merged_df.drop(columns=[col])
-    
-    return merged_df
+        
+        # Filter out rows where GRD equals 'nan' string before joining
+        df1_filtered = df1[df1['GRD'] != 'nan']
+        
+        # Keep all original rows in the result but only join where GRD is not 'nan'
+        result = df1.copy()
+        
+        # Perform merge only on filtered rows
+        merged_rows = pd.merge(df1_filtered, df2, on=on_columns, how='left')
+        
+        # Add rate columns to result DataFrame
+        if 'min_rate' not in result.columns:
+            result['min_rate'] = pd.NA
+        if 'max_rate' not in result.columns:
+            result['max_rate'] = pd.NA
+            
+        # Update only the merged rows with rate information
+        for idx, row in merged_rows.iterrows():
+            # Find matching row in result
+            match_conditions = True
+            for col in on_columns:
+                match_conditions = match_conditions & (result[col] == row[col])
+            
+            # Update rate values for matching rows
+            result.loc[match_conditions, 'min_rate'] = row['min_rate']
+            result.loc[match_conditions, 'max_rate'] = row['max_rate']
+            
+        return result
+    else:
+        # If GRD is not in join columns, perform normal join
+        merged_df = pd.merge(df1, df2, on=on_columns, how='left')
+        return merged_df
