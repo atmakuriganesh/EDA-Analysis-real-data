@@ -52,3 +52,6 @@ def left_join_dataframes(df1, df2, on_columns):
         # If GRD is not in join columns, perform normal join
         merged_df = pd.merge(df1, df2, on=on_columns, how='left')
         return merged_df
+
+
+join_df = left_join_dataframes(df_combined, pay_df, on_columns=['SCH','GRD'])
