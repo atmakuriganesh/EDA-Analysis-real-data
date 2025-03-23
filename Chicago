@@ -1,57 +1,16 @@
-import pandas as pd
-
 def left_join_dataframes(df1, df2, on_columns):
-    """
-    Perform a left join on two DataFrames based on specified columns,
-    excluding rows where GRD equals the string 'nan'.
-    
-    Parameters:
-    df1 (pd.DataFrame): The main DataFrame.
-    df2 (pd.DataFrame): The DataFrame to join.
-    on_columns (list): List of columns to join on.
-    
-    Returns:
-    pd.DataFrame: The merged DataFrame.
-    """
-    df1 = df1.copy()
-    df2 = df2.copy()
-    
-    # Process GRD column strings
-    if 'GRD' in on_columns:
-        df1['GRD'] = df1['GRD'].str.upper().str.lstrip('0')
-        df2['GRD'] = df2['GRD'].str.upper().str.lstrip('0')
-        
-        # Filter out rows where GRD equals 'nan' string before joining
-        df1_filtered = df1[df1['GRD'] != 'nan']
-        
-        # Keep all original rows in the result but only join where GRD is not 'nan'
-        result = df1.copy()
-        
-        # Perform merge only on filtered rows
-        merged_rows = pd.merge(df1_filtered, df2, on=on_columns, how='left')
-        
-        # Add rate columns to result DataFrame
-        if 'min_rate' not in result.columns:
-            result['min_rate'] = pd.NA
-        if 'max_rate' not in result.columns:
-            result['max_rate'] = pd.NA
-            
-        # Update only the merged rows with rate information
-        for idx, row in merged_rows.iterrows():
-            # Find matching row in result
-            match_conditions = True
-            for col in on_columns:
-                match_conditions = match_conditions & (result[col] == row[col])
-            
-            # Update rate values for matching rows
-            result.loc[match_conditions, 'min_rate'] = row['min_rate']
-            result.loc[match_conditions, 'max_rate'] = row['max_rate']
-            
-        return result
-    else:
-        # If GRD is not in join columns, perform normal join
-        merged_df = pd.merge(df1, df2, on=on_columns, how='left')
-        return merged_df
-
-
-join_df = left_join_dataframes(df_combined, pay_df, on_columns=['SCH','GRD'])
+   """
+   Perform a left join on two DataFrames based on specified columns.
+   Matching should be case-insensitive for the 'GRD' column.
+   """
+   
+   # Normalize 'GRD' column to uppercase in both dataframes if it exists
+   if 'GRD' in on_columns:
+       df1 = df1.copy()
+       df2 = df2.copy()
+       df1['GRD'] = df1['GRD'].str.upper().str.lstrip('0')
+       df2['GRD'] = df2['GRD'].str.upper().str.lstrip('0')
+   
+   merged_df = df1.merge(df2, on=on_columns, how='left')
+   
+   return merged_df
