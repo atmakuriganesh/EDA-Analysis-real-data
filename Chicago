@@ -1,4 +1,10 @@
-df_combined['GRD'] = df_combined['GRD'].apply(
-    lambda x: x[1:].upper() if isinstance(x, str) and x.startswith('0') else 
-              x.upper() if isinstance(x, str) else x
-)
+grade_14_records = filtered_df[filtered_df['GRD'] == 14]
+
+# Display these records
+print(f"Number of records with GRD = 14: {len(grade_14_records)}")
+print("\nFirst few records:")
+print(grade_14_records.head())
+
+# If you need to see all 12 records
+print("\nAll records with GRD = 14:")
+print(grade_14_records)
