@@ -1,16 +1,4 @@
-def left_join_dataframes(df1, df2, on_columns):
-   """
-   Perform a left join on two DataFrames based on specified columns.
-   Matching should be case-insensitive for the 'GRD' column.
-   """
-   
-   # Normalize 'GRD' column to uppercase in both dataframes if it exists
-   if 'GRD' in on_columns:
-       df1 = df1.copy()
-       df2 = df2.copy()
-       df1['GRD'] = df1['GRD'].str.upper().str.lstrip('0')
-       df2['GRD'] = df2['GRD'].str.upper().str.lstrip('0')
-   
-   merged_df = df1.merge(df2, on=on_columns, how='left')
-   
-   return merged_df
+df_combined['GRD'] = df_combined['GRD'].apply(
+    lambda x: x[1:].upper() if isinstance(x, str) and x.startswith('0') else 
+              x.upper() if isinstance(x, str) else x
+)
