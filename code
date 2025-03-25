@@ -26,3 +26,39 @@ def adjust_quantities(nb_persons: int, ingredients: List[str]) -> List[str]:
         adjusted_ingredients.append(new_ingredient)
     
     return adjusted_ingredients
+
+---------------------------------------------------------------------------------
+17 question
+
+def add_drama(text: str) -> str:
+    """
+    Args:
+        text (str): An ASCII string, defining the text to be dramatized.
+    
+    Returns:
+        The dramatized string.
+    """
+    # Step 1: Add one exclamation mark to every group of consecutive exclamation marks
+    i = 0
+    result = ""
+    
+    while i < len(text):
+        if text[i] == '!':
+            # Count how many consecutive exclamation marks
+            exclamation_count = 1
+            i += 1
+            
+            while i < len(text) and text[i] == '!':
+                exclamation_count += 1
+                i += 1
+            
+            # Add exclamation marks plus one more
+            result += '!' * (exclamation_count + 1)
+        else:
+            result += text[i]
+            i += 1
+    
+    # Step 2: Change all periods to exclamation marks
+    result = result.replace('.', '!')
+    
+    return result
