@@ -1,181 +1,167 @@
-def analyze_job_titles_comprehensive(df, n=15):
+def compare_top_grades_salary(df, n=15):
     """
-    Comprehensive analysis of job titles including identification of:
-    - Highest paying job titles
-    - Lowest paying job titles
-    - Most influential job titles (based on salary and frequency)
+    Compare salaries across the top 15 grades based on different metrics.
     
     Args:
         df (pandas.DataFrame): DataFrame with job data
-        n (int): Number of top/bottom jobs to identify (default: 15)
+        n (int): Number of top grades to analyze (default: 15)
         
     Returns:
-        dict: Dictionary containing all analysis results
+        pandas.DataFrame: DataFrame containing salary comparison for top grades
     """
- 
+    import pandas as pd
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    from matplotlib.gridspec import GridSpec
     
-    # Ensure we have only rows with salary data
-    salary_df = df.dropna(subset=['min_rate', 'max_rate'])
+    # Ensure we have only rows with salary and grade data
+    salary_df = df.dropna(subset=['min_rate', 'max_rate', 'grade'])
     
     # Calculate average salary for each position
     salary_df['avg_salary'] = (salary_df['min_rate'] + salary_df['max_rate']) / 2
     
-    # Calculate overall average salary for comparison
+    # Calculate overall average for comparison
     overall_avg_salary = salary_df['avg_salary'].mean()
     
-    # Group by job description and calculate average salaries
-    job_salary = salary_df.groupby('job_description').agg({
-        'avg_salary': 'mean',
+    # Group by grade and calculate statistics
+    grade_salary = salary_df.groupby('grade').agg({
+        'avg_salary': ['mean', 'median', 'min', 'max', 'std', 'count'],
         'min_rate': 'mean',
-        'max_rate': 'mean',
-        'job_type': 'count'
+        'max_rate': 'mean'
     }).reset_index()
     
-    # Rename count column for clarity
-    job_salary = job_salary.rename(columns={'job_type': 'position_count'})
+    # Flatten multi-index columns
+    grade_salary.columns = ['_'.join(col).strip('_') for col in grade_salary.columns.values]
+    grade_salary.rename(columns={'grade_': 'grade', 'avg_salary_count': 'position_count'}, inplace=True)
     
-    # Get the highest paying jobs
-    highest_paying_jobs = job_salary.sort_values('avg_salary', ascending=False).head(n)
-    highest_paying_jobs['pct_above_avg'] = ((highest_paying_jobs['avg_salary'] - overall_avg_salary) / 
-                                           overall_avg_salary * 100)
+    # Calculate salary range and coefficient of variation
+    grade_salary['salary_range'] = grade_salary['avg_salary_max'] - grade_salary['avg_salary_min']
+    grade_salary['coefficient_of_variation'] = grade_salary['avg_salary_std'] / grade_salary['avg_salary_mean'] * 100
     
-    # Get the lowest paying jobs
-    lowest_paying_jobs = job_salary.sort_values('avg_salary', ascending=True).head(n)
-    lowest_paying_jobs['pct_below_avg'] = ((overall_avg_salary - lowest_paying_jobs['avg_salary']) / 
-                                         overall_avg_salary * 100)
+    # Calculate percentage difference from overall average
+    grade_salary['pct_diff_from_avg'] = ((grade_salary['avg_salary_mean'] - overall_avg_salary) / 
+                                        overall_avg_salary * 100)
     
-    # Calculate influence score based on frequency and salary
-    # Normalize salary and count for scoring
-    job_salary['salary_norm'] = (job_salary['avg_salary'] - job_salary['avg_salary'].min()) / \
-                              (job_salary['avg_salary'].max() - job_salary['avg_salary'].min())
+    # Get the top N grades by:
+    # 1. Average salary
+    top_by_salary = grade_salary.sort_values('avg_salary_mean', ascending=False).head(n)
     
-    job_salary['count_norm'] = (job_salary['position_count'] - job_salary['position_count'].min()) / \
-                             (job_salary['position_count'].max() - job_salary['position_count'].min())
+    # 2. Position count
+    top_by_count = grade_salary.sort_values('position_count', ascending=False).head(n)
     
-    # Calculate influence score (combination of salary and count)
-    # Higher weight on count (0.6) since frequent positions have more total budget impact
-    job_salary['influence_score'] = (0.4 * job_salary['salary_norm']) + (0.6 * job_salary['count_norm'])
+    # 3. Salary range (max variation within grade)
+    top_by_range = grade_salary.sort_values('salary_range', ascending=False).head(n)
     
-    # Get top influential jobs
-    influential_jobs = job_salary.sort_values('influence_score', ascending=False).head(n)
+    # 4. Most different from average (absolute percentage)
+    grade_salary['abs_pct_diff'] = grade_salary['pct_diff_from_avg'].abs()
+    top_by_diff = grade_salary.sort_values('abs_pct_diff', ascending=False).head(n)
     
-    # Calculate total salary impact (avg_salary * count)
-    influential_jobs['total_salary_impact'] = influential_jobs['avg_salary'] * influential_jobs['position_count']
-    
-    # Create a combined visualization with subplots
+    # Create visualization
     plt.figure(figsize=(20, 15))
     gs = GridSpec(2, 2, figure=plt.gcf())
     
-    # 1. Highest paying jobs
+    # 1. Top grades by average salary
     ax1 = plt.subplot(gs[0, 0])
-    sns.barplot(x='avg_salary', y='job_description', data=highest_paying_jobs.head(10), ax=ax1)
+    bars = sns.barplot(x='avg_salary_mean', y='grade', data=top_by_salary.head(n), ax=ax1)
+    
+    # Add position count annotations
+    for i, bar in enumerate(bars.patches):
+        bars.text(bar.get_width() + 1000, 
+                 bar.get_y() + bar.get_height()/2, 
+                 f"n={top_by_salary.iloc[i]['position_count']}", 
+                 ha='left', va='center')
+    
     ax1.axvline(x=overall_avg_salary, color='red', linestyle='--', 
                label=f'Overall Average: ${overall_avg_salary:.2f}')
-    
-    # Add percentage labels
-    for i, row in enumerate(highest_paying_jobs.head(10).itertuples()):
-        ax1.text(row.avg_salary + 1000, i, f"{row.pct_above_avg:.1f}% above avg", 
-               va='center', color='darkgreen', fontsize=8)
-    
-    ax1.set_title('Top 10 Highest Paying Job Titles')
+    ax1.set_title('Top 15 Grades by Average Salary')
     ax1.set_xlabel('Average Salary ($)')
-    ax1.set_ylabel('Job Title')
+    ax1.set_ylabel('Grade')
     ax1.legend()
     
-    # 2. Lowest paying jobs
+    # 2. Top grades by position count
     ax2 = plt.subplot(gs[0, 1])
-    sns.barplot(x='avg_salary', y='job_description', data=lowest_paying_jobs.head(10), ax=ax2)
-    ax2.axvline(x=overall_avg_salary, color='red', linestyle='--', 
-               label=f'Overall Average: ${overall_avg_salary:.2f}')
+    bars = sns.barplot(x='position_count', y='grade', data=top_by_count.head(n), ax=ax2)
     
-    # Add percentage labels
-    for i, row in enumerate(lowest_paying_jobs.head(10).itertuples()):
-        ax2.text(row.avg_salary + 1000, i, f"{row.pct_below_avg:.1f}% below avg", 
-               va='center', color='darkred', fontsize=8)
+    # Add salary annotations
+    for i, bar in enumerate(bars.patches):
+        bars.text(bar.get_width() + 1, 
+                 bar.get_y() + bar.get_height()/2, 
+                 f"${top_by_count.iloc[i]['avg_salary_mean']:.0f}", 
+                 ha='left', va='center')
     
-    ax2.set_title('Top 10 Lowest Paying Job Titles')
-    ax2.set_xlabel('Average Salary ($)')
-    ax2.set_ylabel('Job Title')
-    ax2.legend()
+    ax2.set_title('Top 15 Grades by Position Count')
+    ax2.set_xlabel('Number of Positions')
+    ax2.set_ylabel('Grade')
     
-    # 3. Scatter plot of count vs salary with influence score as color
+    # 3. Box plot of salary distribution by grade
     ax3 = plt.subplot(gs[1, 0])
-    scatter = ax3.scatter(job_salary['position_count'], 
-                        job_salary['avg_salary'],
-                        c=job_salary['influence_score'], 
-                        cmap='viridis', 
-                        s=80,
-                        alpha=0.7)
+    # Need to get the raw data for boxplot
+    top_grades_list = top_by_salary['grade'].tolist()
+    boxplot_data = salary_df[salary_df['grade'].isin(top_grades_list)]
     
-    # Add a colorbar
-    cbar = plt.colorbar(scatter, ax=ax3)
-    cbar.set_label('Influence Score')
-    
-    # Label the most influential points
-    for _, row in influential_jobs.head(7).iterrows():
-        ax3.annotate(row['job_description'], 
-                   xy=(row['position_count'], row['avg_salary']),
-                   xytext=(5, 5),
-                   textcoords='offset points',
-                   fontsize=8,
-                   bbox=dict(boxstyle="round,pad=0.3", fc="white", alpha=0.8))
-    
-    ax3.set_title('Job Title Influence: Count vs Salary')
-    ax3.set_xlabel('Position Count')
+    sns.boxplot(x='grade', y='avg_salary', data=boxplot_data, 
+               order=top_by_salary['grade'].tolist(), 
+               ax=ax3)
+    ax3.axhline(y=overall_avg_salary, color='red', linestyle='--', 
+               label=f'Overall Average: ${overall_avg_salary:.2f}')
+    ax3.set_title('Salary Distribution for Top 15 Grades')
+    ax3.set_xlabel('Grade')
     ax3.set_ylabel('Average Salary ($)')
+    ax3.set_xticklabels(ax3.get_xticklabels(), rotation=45)
+    ax3.legend()
     
-    # 4. Top influential jobs by total budget impact
+    # 4. Percentage difference from average
     ax4 = plt.subplot(gs[1, 1])
-    sns.barplot(x='total_salary_impact', y='job_description', 
-               data=influential_jobs.sort_values('total_salary_impact', ascending=False).head(10), 
-               ax=ax4)
+    bars = sns.barplot(y='grade', x='pct_diff_from_avg', data=top_by_diff.head(n), ax=ax4)
     
-    # Add influence score labels
-    for i, row in enumerate(influential_jobs.sort_values('total_salary_impact', ascending=False).head(10).itertuples()):
-        ax4.text(row.total_salary_impact + 1000, i, 
-                f"I-score: {row.influence_score:.2f}", 
-                va='center', fontsize=8)
+    # Color bars based on above/below average
+    for i, bar in enumerate(bars.patches):
+        if top_by_diff.iloc[i]['pct_diff_from_avg'] > 0:
+            bar.set_facecolor('green')
+        else:
+            bar.set_facecolor('red')
     
-    ax4.set_title('Top 10 Jobs by Total Budget Impact')
-    ax4.set_xlabel('Total Salary Budget Impact ($)')
-    ax4.set_ylabel('Job Title')
+    ax4.axvline(x=0, color='black', linestyle='-')
+    ax4.set_title('Top 15 Grades by Percentage Difference from Average')
+    ax4.set_xlabel('Percentage Difference from Average (%)')
+    ax4.set_ylabel('Grade')
     
     plt.tight_layout()
-    plt.savefig('job_title_comprehensive_analysis.png')
+    plt.savefig('top_grades_salary_comparison.png')
     
-    # Calculate summary statistics
-    total_job_titles = len(job_salary)
-    total_employees = job_salary['position_count'].sum()
-    total_salary_budget = (job_salary['avg_salary'] * job_salary['position_count']).sum()
-    top_influential_budget = influential_jobs['total_salary_impact'].sum()
+    # Calculate summary statistics for reporting
+    above_avg_grades = len(grade_salary[grade_salary['pct_diff_from_avg'] > 0])
+    below_avg_grades = len(grade_salary[grade_salary['pct_diff_from_avg'] <= 0])
+    highest_grade = grade_salary.iloc[grade_salary['avg_salary_mean'].idxmax()]
+    lowest_grade = grade_salary.iloc[grade_salary['avg_salary_mean'].idxmin()]
+    most_common_grade = grade_salary.iloc[grade_salary['position_count'].idxmax()]
     
-    # Print summary findings
-    print("\n===== JOB TITLE COMPREHENSIVE ANALYSIS =====")
-    print(f"Total unique job titles: {total_job_titles}")
-    print(f"Total number of employees: {total_employees}")
+    # Print summary
+    print("\n===== GRADE SALARY COMPARISON =====")
+    print(f"Total unique grades: {len(grade_salary)}")
     print(f"Overall average salary: ${overall_avg_salary:.2f}")
-    print(f"Estimated total salary budget: ${total_salary_budget:,.2f}")
-    print("\nTop paying job title: " + 
-          f"{highest_paying_jobs.iloc[0]['job_description']} (${highest_paying_jobs.iloc[0]['avg_salary']:,.2f})")
-    print("Lowest paying job title: " + 
-          f"{lowest_paying_jobs.iloc[0]['job_description']} (${lowest_paying_jobs.iloc[0]['avg_salary']:,.2f})")
-    print("Most influential job title: " + 
-          f"{influential_jobs.iloc[0]['job_description']} (Influence score: {influential_jobs.iloc[0]['influence_score']:.2f})")
-    print(f"\nTop {n} influential job titles account for ${top_influential_budget:,.2f} " + 
-          f"({top_influential_budget/total_salary_budget*100:.1f}% of total budget)")
+    print(f"Grades above average: {above_avg_grades}")
+    print(f"Grades below average: {below_avg_grades}")
     
-    # Return a dictionary with all analysis results
+    print(f"\nHighest paying grade: {highest_grade['grade']} (${highest_grade['avg_salary_mean']:.2f})")
+    print(f"- {highest_grade['position_count']} positions")
+    print(f"- {highest_grade['pct_diff_from_avg']:.1f}% above overall average")
+    
+    print(f"\nLowest paying grade: {lowest_grade['grade']} (${lowest_grade['avg_salary_mean']:.2f})")
+    print(f"- {lowest_grade['position_count']} positions")
+    print(f"- {lowest_grade['pct_diff_from_avg']:.1f}% below overall average")
+    
+    print(f"\nMost common grade: {most_common_grade['grade']} ({most_common_grade['position_count']} positions)")
+    print(f"- Average salary: ${most_common_grade['avg_salary_mean']:.2f}")
+    print(f"- {most_common_grade['pct_diff_from_avg']:.1f}% difference from overall average")
+    
+    # Return the full grade salary data
     return {
-        'highest_paying_jobs': highest_paying_jobs,
-        'lowest_paying_jobs': lowest_paying_jobs,
-        'influential_jobs': influential_jobs,
-        'job_salary_data': job_salary,
-        'summary_stats': {
-            'total_job_titles': total_job_titles,
-            'total_employees': total_employees,
-            'overall_avg_salary': overall_avg_salary,
-            'total_salary_budget': total_salary_budget,
-            'budget_top_influential': top_influential_budget,
-            'pct_budget_influential': top_influential_budget/total_salary_budget*100
-        }
+        'grade_salary_data': grade_salary,
+        'top_by_salary': top_by_salary,
+        'top_by_count': top_by_count,
+        'top_by_range': top_by_range,
+        'top_by_diff': top_by_diff,
+        'overall_avg_salary': overall_avg_salary
     }
