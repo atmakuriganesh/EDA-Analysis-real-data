@@ -1,0 +1,36 @@
+def count_peaks(values: List[float]) -> int:
+    """
+    Count the total number of peaks in radioactivity sensor values.
+    
+    A top peak occurs when a value is at least 5 units higher than both of its neighbors.
+    A bottom peak occurs when a value is at least 5 units lower than both of its neighbors.
+    The first and last elements can never be peaks.
+    
+    Args:
+        values (List[float]): The radioactivity values measured by the sensor
+        
+    Returns:
+        The total number of top peaks and bottom peaks found in the radioactivity values.
+    """
+    # Edge cases
+    if len(values) <= 2:
+        return 0
+    
+    peak_count = 0
+    
+    # We start from index 1 and stop at index len(values)-2
+    # because the first and last elements can never be peaks
+    for i in range(1, len(values) - 1):
+        current_value = values[i]
+        prev_value = values[i - 1]
+        next_value = values[i + 1]
+        
+        # Check for top peak
+        if current_value >= prev_value + 5 and current_value >= next_value + 5:
+            peak_count += 1
+        
+        # Check for bottom peak
+        elif current_value <= prev_value - 5 and current_value <= next_value - 5:
+            peak_count += 1
+    
+    return peak_count
