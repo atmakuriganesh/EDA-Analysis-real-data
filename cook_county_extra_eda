@@ -1,0 +1,6 @@
+# Add this to the analyze_job_positions function
+top15_count = job_counts.head(15)['Count'].sum()
+total_count = len(df)
+top15_percentage = (top15_count / total_count) * 100
+
+print(f"Top 15 positions represent {top15_percentage:.2f}% of all {total_count} positions")
