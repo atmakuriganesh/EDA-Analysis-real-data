@@ -1,36 +1,28 @@
-def count_peaks(values: List[float]) -> int:
+def adjust_quantities(nb_persons: int, ingredients: List[str]) -> List[str]:
     """
-    Count the total number of peaks in radioactivity sensor values.
-    
-    A top peak occurs when a value is at least 5 units higher than both of its neighbors.
-    A bottom peak occurs when a value is at least 5 units lower than both of its neighbors.
-    The first and last elements can never be peaks.
-    
     Args:
-        values (List[float]): The radioactivity values measured by the sensor
-        
+        nb_persons (int): Number of persons for which to prepare the recipe. Strictly positive integer.
+        ingredients (List[str]): List of ingredients. All of them start with an integer, strictly positive.
+    
     Returns:
-        The total number of top peaks and bottom peaks found in the radioactivity values.
+        List of ingredients, with quantities multiplied by the number of persons.
     """
-    # Edge cases
-    if len(values) <= 2:
-        return 0
+    adjusted_ingredients = []
     
-    peak_count = 0
-    
-    # We start from index 1 and stop at index len(values)-2
-    # because the first and last elements can never be peaks
-    for i in range(1, len(values) - 1):
-        current_value = values[i]
-        prev_value = values[i - 1]
-        next_value = values[i + 1]
+    for ingredient in ingredients:
+        # Find where the digit part ends
+        i = 0
+        while i < len(ingredient) and ingredient[i].isdigit():
+            i += 1
+            
+        # Extract the quantity and the rest of the string
+        quantity = int(ingredient[:i])
+        rest_of_string = ingredient[i:]
         
-        # Check for top peak
-        if current_value >= prev_value + 5 and current_value >= next_value + 5:
-            peak_count += 1
+        # Calculate the new quantity and create the new ingredient string
+        new_quantity = quantity * nb_persons
+        new_ingredient = str(new_quantity) + rest_of_string
         
-        # Check for bottom peak
-        elif current_value <= prev_value - 5 and current_value <= next_value - 5:
-            peak_count += 1
+        adjusted_ingredients.append(new_ingredient)
     
-    return peak_count
+    return adjusted_ingredients
