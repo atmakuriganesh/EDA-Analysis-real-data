@@ -1,167 +1,166 @@
-def compare_top_grades_salary(df, n=15):
+def analyze_salary_structure(df):
     """
-    Compare salaries across the top 15 grades based on different metrics.
+    Analyzes salary structure to answer specific questions:
+    1. Identify jobs with fixed salaries (equal min and max pay)
+    2. Examine relationship between salary level and range
+    3. Calculate distribution of jobs across salary tiers
     
     Args:
         df (pandas.DataFrame): DataFrame with job data
-        n (int): Number of top grades to analyze (default: 15)
-        
-    Returns:
-        pandas.DataFrame: DataFrame containing salary comparison for top grades
     """
     import pandas as pd
     import numpy as np
     import matplotlib.pyplot as plt
     import seaborn as sns
-    from matplotlib.gridspec import GridSpec
     
-    # Ensure we have only rows with salary and grade data
-    salary_df = df.dropna(subset=['min_rate', 'max_rate', 'grade'])
+    # Ensure we have only rows with salary data
+    salary_df = df.dropna(subset=['min_rate', 'max_rate'])
     
-    # Calculate average salary for each position
+    # Calculate average salary and range for each position
     salary_df['avg_salary'] = (salary_df['min_rate'] + salary_df['max_rate']) / 2
+    salary_df['salary_range'] = salary_df['max_rate'] - salary_df['min_rate']
     
-    # Calculate overall average for comparison
-    overall_avg_salary = salary_df['avg_salary'].mean()
+    # 1. Find jobs with fixed salaries (equal min and max pay)
+    fixed_salary_jobs = salary_df[salary_df['salary_range'] == 0].copy()
     
-    # Group by grade and calculate statistics
-    grade_salary = salary_df.groupby('grade').agg({
-        'avg_salary': ['mean', 'median', 'min', 'max', 'std', 'count'],
-        'min_rate': 'mean',
-        'max_rate': 'mean'
+    print("\n===== FIXED SALARY ANALYSIS =====")
+    print(f"Total jobs with fixed salaries (min = max): {len(fixed_salary_jobs)}")
+    print(f"This represents {(len(fixed_salary_jobs) / len(salary_df) * 100):.2f}% of all jobs with salary data")
+    
+    if len(fixed_salary_jobs) > 0:
+        # Group by job description to count occurrences
+        fixed_jobs_count = fixed_salary_jobs.groupby('job_description').size().reset_index(name='count')
+        fixed_jobs_salary = fixed_salary_jobs.groupby('job_description')['min_rate'].mean().reset_index(name='fixed_salary')
+        fixed_jobs = pd.merge(fixed_jobs_count, fixed_jobs_salary, on='job_description')
+        fixed_jobs = fixed_jobs.sort_values('fixed_salary', ascending=False)
+        
+        print("\nTop 10 fixed-salary jobs:")
+        for i, row in fixed_jobs.head(10).iterrows():
+            print(f"- {row['job_description']}: ${row['fixed_salary']:,.2f} ({row['count']} positions)")
+        
+        # Create visualization of fixed salary jobs
+        plt.figure(figsize=(12, 8))
+        top_fixed_jobs = fixed_jobs.head(15)
+        bars = sns.barplot(y='job_description', x='fixed_salary', data=top_fixed_jobs)
+        
+        # Add count annotations
+        for i, bar in enumerate(bars.patches):
+            bars.text(bar.get_width() + 1000, 
+                    bar.get_y() + bar.get_height()/2, 
+                    f"n={top_fixed_jobs.iloc[i]['count']}", 
+                    ha='left', va='center')
+        
+        plt.title('Top 15 Jobs with Fixed Salaries')
+        plt.xlabel('Fixed Salary ($)')
+        plt.ylabel('Job Title')
+        plt.tight_layout()
+        plt.savefig('fixed_salary_jobs.png')
+    
+    # 2. Analyze relationship between salary level and range
+    # Calculate relative range as percentage of average salary
+    salary_df['relative_range_pct'] = (salary_df['salary_range'] / salary_df['avg_salary']) * 100
+    
+    # Create scatter plot of average salary vs salary range
+    plt.figure(figsize=(12, 8))
+    scatter = plt.scatter(salary_df['avg_salary'], 
+                         salary_df['salary_range'],
+                         alpha=0.5, 
+                         c=salary_df['relative_range_pct'],
+                         cmap='viridis')
+    
+    plt.colorbar(scatter, label='Relative Range (%)')
+    plt.title('Relationship Between Salary Level and Range')
+    plt.xlabel('Average Salary ($)')
+    plt.ylabel('Salary Range ($)')
+    
+    # Add trend line
+    from scipy import stats
+    slope, intercept, r_value, p_value, std_err = stats.linregress(salary_df['avg_salary'], 
+                                                                  salary_df['salary_range'])
+    x = np.array([salary_df['avg_salary'].min(), salary_df['avg_salary'].max()])
+    y = intercept + slope * x
+    plt.plot(x, y, 'r--', label=f'Trend line (r={r_value:.2f})')
+    
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig('salary_level_vs_range.png')
+    
+    # Analyze correlation
+    correlation = salary_df['avg_salary'].corr(salary_df['salary_range'])
+    
+    print("\n===== SALARY LEVEL VS RANGE ANALYSIS =====")
+    print(f"Correlation between salary level and range: {correlation:.4f}")
+    if correlation > 0.5:
+        print("Strong positive correlation: Higher-paying jobs tend to have wider salary ranges")
+    elif correlation > 0.3:
+        print("Moderate positive correlation: Higher-paying jobs tend to have somewhat wider salary ranges")
+    elif correlation > 0:
+        print("Weak positive correlation: Higher-paying jobs have slightly wider salary ranges")
+    elif correlation > -0.3:
+        print("Weak negative correlation: Higher-paying jobs have slightly narrower salary ranges")
+    else:
+        print("Moderate to strong negative correlation: Higher-paying jobs have narrower salary ranges")
+    
+    # Group by average salary rounded to nearest 10k and calculate average range
+    salary_df['salary_group'] = (salary_df['avg_salary'] // 10000) * 10000
+    group_ranges = salary_df.groupby('salary_group').agg({
+        'salary_range': 'mean',
+        'relative_range_pct': 'mean',
+        'job_description': 'count'
     }).reset_index()
     
-    # Flatten multi-index columns
-    grade_salary.columns = ['_'.join(col).strip('_') for col in grade_salary.columns.values]
-    grade_salary.rename(columns={'grade_': 'grade', 'avg_salary_count': 'position_count'}, inplace=True)
+    group_ranges.columns = ['salary_group', 'avg_range', 'avg_relative_range', 'job_count']
     
-    # Calculate salary range and coefficient of variation
-    grade_salary['salary_range'] = grade_salary['avg_salary_max'] - grade_salary['avg_salary_min']
-    grade_salary['coefficient_of_variation'] = grade_salary['avg_salary_std'] / grade_salary['avg_salary_mean'] * 100
+    print("\nSalary ranges by salary level:")
+    for i, row in group_ranges.iterrows():
+        print(f"- ${row['salary_group']:,.0f}: Avg range ${row['avg_range']:,.2f} ({row['avg_relative_range']:.1f}% of salary), {row['job_count']} jobs")
     
-    # Calculate percentage difference from overall average
-    grade_salary['pct_diff_from_avg'] = ((grade_salary['avg_salary_mean'] - overall_avg_salary) / 
-                                        overall_avg_salary * 100)
+    # 3. Calculate distribution of jobs across salary tiers
+    # Define salary tiers
+    bins = [0, 50000, 100000, float('inf')]
+    labels = ['<$50k', '$50k-$100k', '>$100k']
     
-    # Get the top N grades by:
-    # 1. Average salary
-    top_by_salary = grade_salary.sort_values('avg_salary_mean', ascending=False).head(n)
+    salary_df['salary_tier'] = pd.cut(salary_df['avg_salary'], bins=bins, labels=labels)
     
-    # 2. Position count
-    top_by_count = grade_salary.sort_values('position_count', ascending=False).head(n)
+    # Count jobs in each tier
+    tier_counts = salary_df['salary_tier'].value_counts().reset_index()
+    tier_counts.columns = ['Salary Tier', 'Count']
     
-    # 3. Salary range (max variation within grade)
-    top_by_range = grade_salary.sort_values('salary_range', ascending=False).head(n)
+    # Calculate percentages
+    tier_counts['Percentage'] = tier_counts['Count'] / tier_counts['Count'].sum() * 100
     
-    # 4. Most different from average (absolute percentage)
-    grade_salary['abs_pct_diff'] = grade_salary['pct_diff_from_avg'].abs()
-    top_by_diff = grade_salary.sort_values('abs_pct_diff', ascending=False).head(n)
+    # Sort by tier order
+    tier_order = {label: i for i, label in enumerate(labels)}
+    tier_counts['order'] = tier_counts['Salary Tier'].map(tier_order)
+    tier_counts = tier_counts.sort_values('order').drop('order', axis=1)
     
-    # Create visualization
-    plt.figure(figsize=(20, 15))
-    gs = GridSpec(2, 2, figure=plt.gcf())
+    # Create visualization of salary tiers
+    plt.figure(figsize=(10, 6))
+    ax = sns.barplot(x='Salary Tier', y='Count', data=tier_counts)
     
-    # 1. Top grades by average salary
-    ax1 = plt.subplot(gs[0, 0])
-    bars = sns.barplot(x='avg_salary_mean', y='grade', data=top_by_salary.head(n), ax=ax1)
+    # Add percentage annotations
+    for i, p in enumerate(ax.patches):
+        ax.annotate(f"{tier_counts.iloc[i]['Percentage']:.1f}%", 
+                   (p.get_x() + p.get_width() / 2., p.get_height()),
+                   ha='center', va='bottom')
     
-    # Add position count annotations
-    for i, bar in enumerate(bars.patches):
-        bars.text(bar.get_width() + 1000, 
-                 bar.get_y() + bar.get_height()/2, 
-                 f"n={top_by_salary.iloc[i]['position_count']}", 
-                 ha='left', va='center')
-    
-    ax1.axvline(x=overall_avg_salary, color='red', linestyle='--', 
-               label=f'Overall Average: ${overall_avg_salary:.2f}')
-    ax1.set_title('Top 15 Grades by Average Salary')
-    ax1.set_xlabel('Average Salary ($)')
-    ax1.set_ylabel('Grade')
-    ax1.legend()
-    
-    # 2. Top grades by position count
-    ax2 = plt.subplot(gs[0, 1])
-    bars = sns.barplot(x='position_count', y='grade', data=top_by_count.head(n), ax=ax2)
-    
-    # Add salary annotations
-    for i, bar in enumerate(bars.patches):
-        bars.text(bar.get_width() + 1, 
-                 bar.get_y() + bar.get_height()/2, 
-                 f"${top_by_count.iloc[i]['avg_salary_mean']:.0f}", 
-                 ha='left', va='center')
-    
-    ax2.set_title('Top 15 Grades by Position Count')
-    ax2.set_xlabel('Number of Positions')
-    ax2.set_ylabel('Grade')
-    
-    # 3. Box plot of salary distribution by grade
-    ax3 = plt.subplot(gs[1, 0])
-    # Need to get the raw data for boxplot
-    top_grades_list = top_by_salary['grade'].tolist()
-    boxplot_data = salary_df[salary_df['grade'].isin(top_grades_list)]
-    
-    sns.boxplot(x='grade', y='avg_salary', data=boxplot_data, 
-               order=top_by_salary['grade'].tolist(), 
-               ax=ax3)
-    ax3.axhline(y=overall_avg_salary, color='red', linestyle='--', 
-               label=f'Overall Average: ${overall_avg_salary:.2f}')
-    ax3.set_title('Salary Distribution for Top 15 Grades')
-    ax3.set_xlabel('Grade')
-    ax3.set_ylabel('Average Salary ($)')
-    ax3.set_xticklabels(ax3.get_xticklabels(), rotation=45)
-    ax3.legend()
-    
-    # 4. Percentage difference from average
-    ax4 = plt.subplot(gs[1, 1])
-    bars = sns.barplot(y='grade', x='pct_diff_from_avg', data=top_by_diff.head(n), ax=ax4)
-    
-    # Color bars based on above/below average
-    for i, bar in enumerate(bars.patches):
-        if top_by_diff.iloc[i]['pct_diff_from_avg'] > 0:
-            bar.set_facecolor('green')
-        else:
-            bar.set_facecolor('red')
-    
-    ax4.axvline(x=0, color='black', linestyle='-')
-    ax4.set_title('Top 15 Grades by Percentage Difference from Average')
-    ax4.set_xlabel('Percentage Difference from Average (%)')
-    ax4.set_ylabel('Grade')
-    
+    plt.title('Distribution of Jobs Across Salary Tiers')
     plt.tight_layout()
-    plt.savefig('top_grades_salary_comparison.png')
+    plt.savefig('salary_tier_distribution.png')
     
-    # Calculate summary statistics for reporting
-    above_avg_grades = len(grade_salary[grade_salary['pct_diff_from_avg'] > 0])
-    below_avg_grades = len(grade_salary[grade_salary['pct_diff_from_avg'] <= 0])
-    highest_grade = grade_salary.iloc[grade_salary['avg_salary_mean'].idxmax()]
-    lowest_grade = grade_salary.iloc[grade_salary['avg_salary_mean'].idxmin()]
-    most_common_grade = grade_salary.iloc[grade_salary['position_count'].idxmax()]
+    print("\n===== SALARY TIER DISTRIBUTION =====")
+    for i, row in tier_counts.iterrows():
+        print(f"- {row['Salary Tier']}: {row['Count']} jobs ({row['Percentage']:.1f}%)")
     
-    # Print summary
-    print("\n===== GRADE SALARY COMPARISON =====")
-    print(f"Total unique grades: {len(grade_salary)}")
-    print(f"Overall average salary: ${overall_avg_salary:.2f}")
-    print(f"Grades above average: {above_avg_grades}")
-    print(f"Grades below average: {below_avg_grades}")
-    
-    print(f"\nHighest paying grade: {highest_grade['grade']} (${highest_grade['avg_salary_mean']:.2f})")
-    print(f"- {highest_grade['position_count']} positions")
-    print(f"- {highest_grade['pct_diff_from_avg']:.1f}% above overall average")
-    
-    print(f"\nLowest paying grade: {lowest_grade['grade']} (${lowest_grade['avg_salary_mean']:.2f})")
-    print(f"- {lowest_grade['position_count']} positions")
-    print(f"- {lowest_grade['pct_diff_from_avg']:.1f}% below overall average")
-    
-    print(f"\nMost common grade: {most_common_grade['grade']} ({most_common_grade['position_count']} positions)")
-    print(f"- Average salary: ${most_common_grade['avg_salary_mean']:.2f}")
-    print(f"- {most_common_grade['pct_diff_from_avg']:.1f}% difference from overall average")
-    
-    # Return the full grade salary data
-    return {
-        'grade_salary_data': grade_salary,
-        'top_by_salary': top_by_salary,
-        'top_by_count': top_by_count,
-        'top_by_range': top_by_range,
-        'top_by_diff': top_by_diff,
-        'overall_avg_salary': overall_avg_salary
-    }
+    # Additional analysis: Top 5 jobs in each salary tier
+    print("\nTop jobs in each salary tier:")
+    for tier in labels:
+        tier_jobs = salary_df[salary_df['salary_tier'] == tier]
+        job_counts = tier_jobs.groupby('job_description').size().reset_index(name='count')
+        job_salary = tier_jobs.groupby('job_description')['avg_salary'].mean().reset_index(name='avg_salary')
+        top_jobs = pd.merge(job_counts, job_salary, on='job_description')
+        top_jobs = top_jobs.sort_values('count', ascending=False).head(5)
+        
+        print(f"\n{tier} tier top jobs:")
+        for i, row in top_jobs.iterrows():
+            print(f"- {row['job_description']}: ${row['avg_salary']:,.2f} ({row['count']} positions)")
