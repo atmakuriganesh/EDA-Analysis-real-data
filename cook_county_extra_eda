@@ -4,3 +4,5 @@ total_count = len(df)
 top15_percentage = (top15_count / total_count) * 100
 
 print(f"Top 15 positions represent {top15_percentage:.2f}% of all {total_count} positions")
+
+The chart confirms that administrative positions dominate the county workforce, with Admin Assistant II and III being the most common roles. This suggests a hierarchical administrative structure that would be important to consider in any workforce planning or compensation modeling.
