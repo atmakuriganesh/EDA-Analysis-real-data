@@ -1,8 +1,181 @@
-# Add this to the analyze_job_positions function
-top15_count = job_counts.head(15)['Count'].sum()
-total_count = len(df)
-top15_percentage = (top15_count / total_count) * 100
-
-print(f"Top 15 positions represent {top15_percentage:.2f}% of all {total_count} positions")
-
-The chart confirms that administrative positions dominate the county workforce, with Admin Assistant II and III being the most common roles. This suggests a hierarchical administrative structure that would be important to consider in any workforce planning or compensation modeling.
+def analyze_job_titles_comprehensive(df, n=15):
+    """
+    Comprehensive analysis of job titles including identification of:
+    - Highest paying job titles
+    - Lowest paying job titles
+    - Most influential job titles (based on salary and frequency)
+    
+    Args:
+        df (pandas.DataFrame): DataFrame with job data
+        n (int): Number of top/bottom jobs to identify (default: 15)
+        
+    Returns:
+        dict: Dictionary containing all analysis results
+    """
+ 
+    
+    # Ensure we have only rows with salary data
+    salary_df = df.dropna(subset=['min_rate', 'max_rate'])
+    
+    # Calculate average salary for each position
+    salary_df['avg_salary'] = (salary_df['min_rate'] + salary_df['max_rate']) / 2
+    
+    # Calculate overall average salary for comparison
+    overall_avg_salary = salary_df['avg_salary'].mean()
+    
+    # Group by job description and calculate average salaries
+    job_salary = salary_df.groupby('job_description').agg({
+        'avg_salary': 'mean',
+        'min_rate': 'mean',
+        'max_rate': 'mean',
+        'job_type': 'count'
+    }).reset_index()
+    
+    # Rename count column for clarity
+    job_salary = job_salary.rename(columns={'job_type': 'position_count'})
+    
+    # Get the highest paying jobs
+    highest_paying_jobs = job_salary.sort_values('avg_salary', ascending=False).head(n)
+    highest_paying_jobs['pct_above_avg'] = ((highest_paying_jobs['avg_salary'] - overall_avg_salary) / 
+                                           overall_avg_salary * 100)
+    
+    # Get the lowest paying jobs
+    lowest_paying_jobs = job_salary.sort_values('avg_salary', ascending=True).head(n)
+    lowest_paying_jobs['pct_below_avg'] = ((overall_avg_salary - lowest_paying_jobs['avg_salary']) / 
+                                         overall_avg_salary * 100)
+    
+    # Calculate influence score based on frequency and salary
+    # Normalize salary and count for scoring
+    job_salary['salary_norm'] = (job_salary['avg_salary'] - job_salary['avg_salary'].min()) / \
+                              (job_salary['avg_salary'].max() - job_salary['avg_salary'].min())
+    
+    job_salary['count_norm'] = (job_salary['position_count'] - job_salary['position_count'].min()) / \
+                             (job_salary['position_count'].max() - job_salary['position_count'].min())
+    
+    # Calculate influence score (combination of salary and count)
+    # Higher weight on count (0.6) since frequent positions have more total budget impact
+    job_salary['influence_score'] = (0.4 * job_salary['salary_norm']) + (0.6 * job_salary['count_norm'])
+    
+    # Get top influential jobs
+    influential_jobs = job_salary.sort_values('influence_score', ascending=False).head(n)
+    
+    # Calculate total salary impact (avg_salary * count)
+    influential_jobs['total_salary_impact'] = influential_jobs['avg_salary'] * influential_jobs['position_count']
+    
+    # Create a combined visualization with subplots
+    plt.figure(figsize=(20, 15))
+    gs = GridSpec(2, 2, figure=plt.gcf())
+    
+    # 1. Highest paying jobs
+    ax1 = plt.subplot(gs[0, 0])
+    sns.barplot(x='avg_salary', y='job_description', data=highest_paying_jobs.head(10), ax=ax1)
+    ax1.axvline(x=overall_avg_salary, color='red', linestyle='--', 
+               label=f'Overall Average: ${overall_avg_salary:.2f}')
+    
+    # Add percentage labels
+    for i, row in enumerate(highest_paying_jobs.head(10).itertuples()):
+        ax1.text(row.avg_salary + 1000, i, f"{row.pct_above_avg:.1f}% above avg", 
+               va='center', color='darkgreen', fontsize=8)
+    
+    ax1.set_title('Top 10 Highest Paying Job Titles')
+    ax1.set_xlabel('Average Salary ($)')
+    ax1.set_ylabel('Job Title')
+    ax1.legend()
+    
+    # 2. Lowest paying jobs
+    ax2 = plt.subplot(gs[0, 1])
+    sns.barplot(x='avg_salary', y='job_description', data=lowest_paying_jobs.head(10), ax=ax2)
+    ax2.axvline(x=overall_avg_salary, color='red', linestyle='--', 
+               label=f'Overall Average: ${overall_avg_salary:.2f}')
+    
+    # Add percentage labels
+    for i, row in enumerate(lowest_paying_jobs.head(10).itertuples()):
+        ax2.text(row.avg_salary + 1000, i, f"{row.pct_below_avg:.1f}% below avg", 
+               va='center', color='darkred', fontsize=8)
+    
+    ax2.set_title('Top 10 Lowest Paying Job Titles')
+    ax2.set_xlabel('Average Salary ($)')
+    ax2.set_ylabel('Job Title')
+    ax2.legend()
+    
+    # 3. Scatter plot of count vs salary with influence score as color
+    ax3 = plt.subplot(gs[1, 0])
+    scatter = ax3.scatter(job_salary['position_count'], 
+                        job_salary['avg_salary'],
+                        c=job_salary['influence_score'], 
+                        cmap='viridis', 
+                        s=80,
+                        alpha=0.7)
+    
+    # Add a colorbar
+    cbar = plt.colorbar(scatter, ax=ax3)
+    cbar.set_label('Influence Score')
+    
+    # Label the most influential points
+    for _, row in influential_jobs.head(7).iterrows():
+        ax3.annotate(row['job_description'], 
+                   xy=(row['position_count'], row['avg_salary']),
+                   xytext=(5, 5),
+                   textcoords='offset points',
+                   fontsize=8,
+                   bbox=dict(boxstyle="round,pad=0.3", fc="white", alpha=0.8))
+    
+    ax3.set_title('Job Title Influence: Count vs Salary')
+    ax3.set_xlabel('Position Count')
+    ax3.set_ylabel('Average Salary ($)')
+    
+    # 4. Top influential jobs by total budget impact
+    ax4 = plt.subplot(gs[1, 1])
+    sns.barplot(x='total_salary_impact', y='job_description', 
+               data=influential_jobs.sort_values('total_salary_impact', ascending=False).head(10), 
+               ax=ax4)
+    
+    # Add influence score labels
+    for i, row in enumerate(influential_jobs.sort_values('total_salary_impact', ascending=False).head(10).itertuples()):
+        ax4.text(row.total_salary_impact + 1000, i, 
+                f"I-score: {row.influence_score:.2f}", 
+                va='center', fontsize=8)
+    
+    ax4.set_title('Top 10 Jobs by Total Budget Impact')
+    ax4.set_xlabel('Total Salary Budget Impact ($)')
+    ax4.set_ylabel('Job Title')
+    
+    plt.tight_layout()
+    plt.savefig('job_title_comprehensive_analysis.png')
+    
+    # Calculate summary statistics
+    total_job_titles = len(job_salary)
+    total_employees = job_salary['position_count'].sum()
+    total_salary_budget = (job_salary['avg_salary'] * job_salary['position_count']).sum()
+    top_influential_budget = influential_jobs['total_salary_impact'].sum()
+    
+    # Print summary findings
+    print("\n===== JOB TITLE COMPREHENSIVE ANALYSIS =====")
+    print(f"Total unique job titles: {total_job_titles}")
+    print(f"Total number of employees: {total_employees}")
+    print(f"Overall average salary: ${overall_avg_salary:.2f}")
+    print(f"Estimated total salary budget: ${total_salary_budget:,.2f}")
+    print("\nTop paying job title: " + 
+          f"{highest_paying_jobs.iloc[0]['job_description']} (${highest_paying_jobs.iloc[0]['avg_salary']:,.2f})")
+    print("Lowest paying job title: " + 
+          f"{lowest_paying_jobs.iloc[0]['job_description']} (${lowest_paying_jobs.iloc[0]['avg_salary']:,.2f})")
+    print("Most influential job title: " + 
+          f"{influential_jobs.iloc[0]['job_description']} (Influence score: {influential_jobs.iloc[0]['influence_score']:.2f})")
+    print(f"\nTop {n} influential job titles account for ${top_influential_budget:,.2f} " + 
+          f"({top_influential_budget/total_salary_budget*100:.1f}% of total budget)")
+    
+    # Return a dictionary with all analysis results
+    return {
+        'highest_paying_jobs': highest_paying_jobs,
+        'lowest_paying_jobs': lowest_paying_jobs,
+        'influential_jobs': influential_jobs,
+        'job_salary_data': job_salary,
+        'summary_stats': {
+            'total_job_titles': total_job_titles,
+            'total_employees': total_employees,
+            'overall_avg_salary': overall_avg_salary,
+            'total_salary_budget': total_salary_budget,
+            'budget_top_influential': top_influential_budget,
+            'pct_budget_influential': top_influential_budget/total_salary_budget*100
+        }
+    }
