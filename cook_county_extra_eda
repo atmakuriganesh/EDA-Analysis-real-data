@@ -164,3 +164,9 @@ def analyze_salary_structure(df):
         print(f"\n{tier} tier top jobs:")
         for i, row in top_jobs.iterrows():
             print(f"- {row['job_description']}: ${row['avg_salary']:,.2f} ({row['count']} positions)")
+
+
+
+
+
+The majority of jobs (61.1%) fall within the middle salary tier ($50k-$100k), while a substantial portion (37%) earn over $100k. Only a tiny fraction (1.9%) earn less than $50k, suggesting this dataset represents a relatively well-compensated workforce.
