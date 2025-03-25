@@ -1,3 +1,15 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.preprocessing import LabelEncoder
+import warnings
+warnings.filterwarnings('ignore')
+
+# Set styles for better visualization
+plt.style.use('seaborn-v0_8-whitegrid')
+sns.set_palette("viridis")
+
 def load_and_clean_data(file_path='cook_county_ingest_df'):
     """
     Load the Cook County jobs dataset and perform initial cleaning.
@@ -31,3 +43,339 @@ def load_and_clean_data(file_path='cook_county_ingest_df'):
             df[col] = pd.to_numeric(df[col], errors='coerce')
     
     return df
+
+def analyze_data_types(df):
+    """
+    Analyze data types and create a summary.
+    
+    Args:
+        df (pandas.DataFrame): DataFrame to analyze
+    
+    Returns:
+        pandas.DataFrame: Summary of data types
+    """
+    # Get data types
+    data_types = pd.DataFrame(df.dtypes, columns=['Data Type'])
+    
+    # Get unique values count
+    unique_counts = pd.DataFrame(df.nunique(), columns=['Unique Values'])
+    
+    # Get missing values count
+    missing_counts = pd.DataFrame(df.isna().sum(), columns=['Missing Values'])
+    missing_percentages = pd.DataFrame(df.isna().mean() * 100, columns=['Missing %'])
+    
+    # Combine all information
+    data_summary = pd.concat([data_types, unique_counts, missing_counts, missing_percentages], axis=1)
+    
+    # Add sample values for each column
+    sample_values = {}
+    for column in df.columns:
+        sample_values[column] = df[column].dropna().sample(min(3, df[column].nunique())).tolist()
+    
+    data_summary['Sample Values'] = pd.Series(sample_values)
+    
+    return data_summary
+
+def analyze_job_positions(df):
+    """
+    Analyze job positions, descriptions, and their distribution.
+    
+    Args:
+        df (pandas.DataFrame): DataFrame to analyze
+    
+    Returns:
+        tuple: (job_count_df, job_type_grade_df)
+    """
+    # Analyze job descriptions
+    job_counts = df['job_description'].value_counts().reset_index()
+    job_counts.columns = ['Job Description', 'Count']
+    
+    # Analyze job types and grades
+    job_type_grade = df.groupby(['job_type', 'job_description']).agg({
+        'grade_ladder': 'first',
+        'grade': 'first',
+        'min_rate': 'mean',
+        'max_rate': 'mean'
+    }).reset_index()
+    
+    # Plot top 15 job descriptions
+    plt.figure(figsize=(12, 6))
+    top_jobs = job_counts.head(15)
+    sns.barplot(x='Count', y='Job Description', data=top_jobs)
+    plt.title('Top 15 Job Positions by Count')
+    plt.tight_layout()
+    plt.savefig('top_job_positions.png')
+    
+    return job_counts, job_type_grade
+
+def analyze_salary_distribution(df):
+    """
+    Analyze salary distribution across different job types and grades.
+    
+    Args:
+        df (pandas.DataFrame): DataFrame to analyze
+    
+    Returns:
+        pandas.DataFrame: Salary statistics by grade ladder
+    """
+    # Filter rows with non-null salary information
+    salary_df = df.dropna(subset=['min_rate', 'max_rate'])
+    
+    # Calculate average salary
+    salary_df['avg_salary'] = (salary_df['min_rate'] + salary_df['max_rate']) / 2
+    
+    # Calculate salary range
+    salary_df['salary_range'] = salary_df['max_rate'] - salary_df['min_rate']
+    
+    # Group by grade ladder
+    grade_salary = salary_df.groupby('grade_ladder').agg({
+        'min_rate': ['mean', 'min', 'max'],
+        'max_rate': ['mean', 'min', 'max'],
+        'avg_salary': ['mean', 'min', 'max'],
+        'salary_range': ['mean', 'min', 'max'],
+        'job_type': 'count'
+    }).reset_index()
+    
+    # Flatten the multi-index columns
+    grade_salary.columns = ['_'.join(col).strip('_') for col in grade_salary.columns.values]
+    
+    # Rename columns for clarity
+    grade_salary = grade_salary.rename(columns={'job_type_count': 'count'})
+    
+    # Plot the salary distribution
+    plt.figure(figsize=(12, 6))
+    sns.boxplot(x='grade_ladder', y='avg_salary', data=salary_df)
+    plt.title('Salary Distribution by Grade Ladder')
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.savefig('salary_distribution_by_grade.png')
+    
+    # Visualize salary range
+    plt.figure(figsize=(10, 6))
+    sns.histplot(data=salary_df, x='avg_salary', hue='grade_ladder', kde=True, bins=20)
+    plt.title('Salary Distribution Across Grade Ladders')
+    plt.tight_layout()
+    plt.savefig('salary_histogram.png')
+    
+    return grade_salary
+
+def analyze_grade_ladder_structure(df):
+    """
+    Analyze the structure of grade ladders and their hierarchy.
+    
+    Args:
+        df (pandas.DataFrame): DataFrame to analyze
+    
+    Returns:
+        pandas.DataFrame: Grade ladder structure summary
+    """
+    # Analyze grade ladder structure
+    ladder_structure = df.groupby('grade_ladder').agg({
+        'grade': lambda x: x.nunique(),
+        'job_type': 'count',
+        'job_description': 'nunique'
+    }).reset_index()
+    
+    ladder_structure.columns = ['Grade Ladder', 'Unique Grades', 'Job Count', 'Unique Job Descriptions']
+    
+    # Plot grade ladder distribution
+    plt.figure(figsize=(12, 6))
+    sns.barplot(x='Job Count', y='Grade Ladder', data=ladder_structure.sort_values('Job Count', ascending=False).head(15))
+    plt.title('Top 15 Grade Ladders by Job Count')
+    plt.tight_layout()
+    plt.savefig('grade_ladder_distribution.png')
+    
+    return ladder_structure
+
+def analyze_pay_schedule_patterns(df):
+    """
+    Analyze patterns in pay schedules and their relationship with other variables.
+    
+    Args:
+        df (pandas.DataFrame): DataFrame to analyze
+    
+    Returns:
+        pandas.DataFrame: Pay schedule summary
+    """
+    # Extract pay schedule patterns
+    pay_schedules = df['pay_schedule_filename'].value_counts().reset_index()
+    pay_schedules.columns = ['Pay Schedule', 'Count']
+    
+    # Group by pay schedule
+    pay_schedule_summary = df.groupby('pay_schedule_filename').agg({
+        'job_type': 'count',
+        'grade_ladder': lambda x: x.nunique(),
+        'min_rate': lambda x: x.mean() if x.notna().any() else np.nan,
+        'max_rate': lambda x: x.mean() if x.notna().any() else np.nan
+    }).reset_index()
+    
+    pay_schedule_summary.columns = ['Pay Schedule', 'Job Count', 'Unique Grade Ladders', 'Avg Min Rate', 'Avg Max Rate']
+    
+    # Calculate average salary for each pay schedule
+    pay_schedule_summary['Avg Salary'] = (pay_schedule_summary['Avg Min Rate'] + pay_schedule_summary['Avg Max Rate']) / 2
+    
+    # Plot pay schedule distribution
+    plt.figure(figsize=(12, 6))
+    sns.barplot(x='Count', y='Pay Schedule', data=pay_schedules.head(15))
+    plt.title('Top 15 Pay Schedules by Count')
+    plt.tight_layout()
+    plt.savefig('pay_schedule_distribution.png')
+    
+    return pay_schedule_summary
+
+def perform_correlation_analysis(df):
+    """
+    Perform correlation analysis on numeric variables.
+    
+    Args:
+        df (pandas.DataFrame): DataFrame to analyze
+    
+    Returns:
+        pandas.DataFrame: Correlation matrix
+    """
+    # Prepare data for correlation analysis
+    numeric_df = df.select_dtypes(include=['number'])
+    
+    # Encode categorical variables
+    categorical_cols = ['job_description', 'grade_ladder', 'grade', 'pay_schedule_filename']
+    for col in categorical_cols:
+        if col in df.columns:
+            le = LabelEncoder()
+            df[f'{col}_encoded'] = le.fit_transform(df[col].astype(str))
+    
+    # Get encoded columns
+    encoded_cols = [col for col in df.columns if col.endswith('_encoded')]
+    
+    # Combine numeric and encoded columns
+    correlation_df = pd.concat([numeric_df, df[encoded_cols]], axis=1)
+    
+    # Calculate correlation matrix
+    correlation_matrix = correlation_df.corr()
+    
+    # Plot correlation heatmap
+    plt.figure(figsize=(12, 10))
+    sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', fmt='.2f', linewidths=0.5)
+    plt.title('Correlation Matrix')
+    plt.tight_layout()
+    plt.savefig('correlation_heatmap.png')
+    
+    return correlation_matrix
+
+def create_feature_distributions(df):
+    """
+    Create visualizations for feature distributions.
+    
+    Args:
+        df (pandas.DataFrame): DataFrame to analyze
+    """
+    # Select numeric columns
+    numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
+    
+    # Plot distributions for numeric columns
+    for col in numeric_cols:
+        plt.figure(figsize=(10, 6))
+        sns.histplot(df[col].dropna(), kde=True)
+        plt.title(f'Distribution of {col}')
+        plt.tight_layout()
+        plt.savefig(f'distribution_{col}.png')
+    
+    # Plot distributions for categorical columns
+    categorical_cols = ['job_description', 'grade_ladder', 'grade', 'pay_schedule_filename']
+    for col in categorical_cols:
+        if col in df.columns:
+            plt.figure(figsize=(12, 6))
+            top_values = df[col].value_counts().head(15)
+            sns.barplot(x=top_values.index, y=top_values.values)
+            plt.title(f'Top 15 Values in {col}')
+            plt.xticks(rotation=45)
+            plt.tight_layout()
+            plt.savefig(f'distribution_{col}.png')
+
+def salary_analysis_by_job_category(df):
+    """
+    Analyze salary distribution across job categories.
+    
+    Args:
+        df (pandas.DataFrame): DataFrame to analyze
+    
+    Returns:
+        pandas.DataFrame: Salary statistics by job category
+    """
+    # Filter rows with non-null salary information
+    salary_df = df.dropna(subset=['min_rate', 'max_rate'])
+    
+    # Calculate average salary
+    salary_df['avg_salary'] = (salary_df['min_rate'] + salary_df['max_rate']) / 2
+    
+    # Categorize job descriptions
+    # Example categories: Management, Technical, Administrative, etc.
+    management_keywords = ['manager', 'director', 'supervisor', 'chief', 'president', 'officer']
+    technical_keywords = ['technical', 'engineer', 'developer', 'analyst', 'specialist']
+    administrative_keywords = ['administrative', 'assistant', 'clerk', 'secretary', 'coordinator']
+    
+    def categorize_job(description):
+        description = str(description).lower()
+        if any(keyword in description for keyword in management_keywords):
+            return 'Management'
+        elif any(keyword in description for keyword in technical_keywords):
+            return 'Technical'
+        elif any(keyword in description for keyword in administrative_keywords):
+            return 'Administrative'
+        else:
+            return 'Other'
+    
+    salary_df['job_category'] = salary_df['job_description'].apply(categorize_job)
+    
+    # Analyze salary by job category
+    category_salary = salary_df.groupby('job_category').agg({
+        'min_rate': ['mean', 'min', 'max'],
+        'max_rate': ['mean', 'min', 'max'],
+        'avg_salary': ['mean', 'min', 'max'],
+        'job_type': 'count'
+    }).reset_index()
+    
+    # Flatten the multi-index columns
+    category_salary.columns = ['_'.join(col).strip('_') for col in category_salary.columns.values]
+    
+    # Plot salary distribution by job category
+    plt.figure(figsize=(10, 6))
+    sns.boxplot(x='job_category', y='avg_salary', data=salary_df)
+    plt.title('Salary Distribution by Job Category')
+    plt.tight_layout()
+    plt.savefig('salary_by_job_category.png')
+    
+    return category_salary
+
+def run_complete_eda(file_path='cook_county_ingest_df'):
+    """
+    Run the complete EDA process and generate all visualizations and analysis.
+    
+    Args:
+        file_path (str): Path to the dataset file
+    
+    Returns:
+        dict: Dictionary containing all analysis results
+    """
+    # Load and clean data
+    df = load_and_clean_data(file_path)
+    
+    # Run all analyses
+    data_types_summary = analyze_data_types(df)
+    job_counts, job_type_grade = analyze_job_positions(df)
+    grade_salary = analyze_salary_distribution(df)
+    ladder_structure = analyze_grade_ladder_structure(df)
+    pay_schedule_summary = analyze_pay_schedule_patterns(df)
+    correlation_matrix = perform_correlation_analysis(df)
+    create_feature_distributions(df)
+    category_salary = salary_analysis_by_job_category(df)
+    
+    # Combine all results
+    results = {
+        'data_types_summary': data_types_summary,
+        'job_counts': job_counts,
+        'job_type_grade': job_type_grade,
+        'grade_salary': grade_salary,
+        'ladder_structure': ladder_structure,
+        'pay_schedule_summary': pay_schedule_summary,
+        'correlation_matrix': correlation_matrix,
+        'category_salary': category_
