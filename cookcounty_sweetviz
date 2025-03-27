@@ -1,0 +1,20 @@
+Overview
+The Cook County salary dataset contains information on 2,966 government positions, providing a comprehensive view of the county's workforce compensation structure. 
+The data shows considerable complexity in job classifications, salary ranges, and organizational structure that impact compensation management and budget planning.
+
+Salary Distribution
+The average salary across all positions is $59,000, with a median of $63,000, indicating a slight negative skew in the midrange of the distribution.
+The full salary range spans from $0 to $288,000, representing an extraordinarily wide compensation spectrum typical of large government organizations with diverse professional requirements.
+Notably, 24% of positions (725) show $0 as the average salary, which requires further investigation. These could represent vacant positions, unpaid roles, or simply missing data that should be addressed for accurate workforce analysis.
+For positions with recorded salary ranges, the minimum rates average $78,000 with median of $69,000, while maximum rates average $143,000 with median of $112,000. This creates an average salary range width of $64,000, though the median range width is much narrower at $35,000. This disparity indicates that while most positions have modest salary ranges, some have exceptionally wide bands that significantly impact the average.
+
+Organizational Structure
+The job classification system appears highly granular, with 2,562 distinct job descriptions (86% unique) among 2,966 positions.
+Administrative positions are particularly common, with various levels of Administrative Assistants representing the most frequently occurring roles. This suggests a substantial administrative support infrastructure within the county government.
+The grading system shows similar complexity, with 104 distinct grade ladders and 422 different grade combinations. The most common grade ladder designation is "NONE-2" (38% of positions), while 23% have blank grade designations. This fragmentation in the grade structure could present challenges for career progression planning and compensation management.
+Union representation appears in several categories, including SEIU 73 (3%) and AFSCME (approximately 4% combined), indicating a mixed union and non-union environment that adds complexity to compensation administration.
+  
+Key Insights
+The extreme granularity in job classifications (86% unique) suggests potential inefficiencies in position management and possible opportunities for rationalization.
+Similarly, the presence of 172 distinct salary ranges for 2,966 positions indicates a highly complex compensation structure that may be challenging to administer consistently.
+The significant gap between the 95th percentile salary ($121,000) and the maximum salary ($288,000) reveals exceptional compensation for a small number of senior positions, which is typical in government structures with appointed or executive leadership roles.
