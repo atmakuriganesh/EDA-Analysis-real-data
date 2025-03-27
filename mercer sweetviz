@@ -1,0 +1,39 @@
+Dataset Overview
+
+Size: 8,713 rows with no duplicates, consuming 4.3 MB RAM
+Features: 13 total features (1 categorical, 8 numerical, 4 text)
+Data Completeness: Most features have good coverage, but specialization is missing for 26% of entries
+
+Base Annual Compensation (baseannual_mean_ow)
+
+Distribution: Right-skewed with a mean of $87k and median of $88k
+Range: $0 - $269k with an IQR of $69,036
+Notable: 18% of entries (1,551) are zero values, suggesting either missing data or positions without base salary
+Dispersion: Standard deviation of $54,172 indicating substantial variation in compensation
+
+Compensation Distribution Patterns
+
+Bimodal Tendency: The histogram for base annual mean shows a slight bimodal distribution, with peaks around $50k-$60k and $100k-$120k, suggesting potential stratification between junior/mid-level roles and senior positions.
+Compensation Spread: The interquartile range (IQR) increases progressively from base to total compensation (from $69k to $76k at the 75th percentile), indicating greater variability in bonus and incentive structures at higher levels.
+Zero Values Impact: The 18% zero values significantly impact the overall distribution metrics and should be analyzed separately to understand if they represent missing data or actual zero-compensation roles.
+
+Statistical Relationships
+
+Low Skewness: Despite appearing right-skewed visually, the data has surprisingly low skewness values (-0.026 for base annual mean), suggesting a more balanced distribution than typical for compensation data.
+Departmental Compensation Patterns: Engineering & Science has the highest headcount but not the highest compensation, while smaller departments like Project/Program Management and Data Analytics command premium salaries (exceeding $100k).
+Kurtosis Indicators: All compensation metrics show slightly negative kurtosis (around -0.4 to -0.6), indicating a flatter distribution than normal with fewer extreme outliers than might be expected.
+
+Organizational Structure Insights
+
+Position to Employee Ratio: With 8,495 unique position titles for 8,713 employees, there's an almost 1:1 ratio, suggesting extremely specialized job definitions or potential data inconsistency issues.
+Classification Complexity: The hierarchical coding system (e.g., SCN.03.R02.S30) appears to follow a consistent pattern that could reveal hidden organizational design principles beyond the explicit family/subfamily structure.
+Missing Specialization Pattern: The 26% missing specialization data isn't randomly distributed and likely correlates with specific departments or position types, potentially indicating areas where standardized classification is more challenging.
+
+
+Key Insights
+
+The data shows considerable compensation variation across different organizational families
+There's a substantial premium for total cash compared to base salary (approximately 10-15%)
+The dataset has comprehensive position coding (mjlcode) with a standardized hierarchical structure
+Engineering & Science, IT, and Sales/Marketing positions form the largest employee segments
+The distribution of specializations shows significant granularity with most specializations representing less than 1% of the workforce
