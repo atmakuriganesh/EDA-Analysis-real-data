@@ -1,0 +1,16 @@
+# For single values
+df_pa['Salary Range'] = df_pa['Salary Range'].apply(lambda x: f"{int(float(x)):,}" if isinstance(x, (int, float, str)) and str(x).replace('.', '', 1).isdigit() else x)
+
+# For ranges (like the 128,294.00 – 178,641.00 format)
+def format_salary_range(value):
+    if isinstance(value, str) and '–' in value:
+        parts = value.split('–')
+        try:
+            start = f"{int(float(parts[0].strip())):,}"
+            end = f"{int(float(parts[1].strip())):,}"
+            return f"{start} – {end}"
+        except:
+            return value
+    return value
+
+df_pa['Salary Range'] = df_pa['Salary Range'].apply(format_salary_range)
